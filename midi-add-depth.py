@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 # Add depth to MIDI file, Silas S. Brown
 # Based on Python Midi Package by Max M,
