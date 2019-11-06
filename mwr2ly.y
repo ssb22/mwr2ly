@@ -1,7 +1,7 @@
 
 /*
    Manuscript Writer to Lilypond converter
-   Version 1.162, (c) 2010-13,2015-2016 Silas S. Brown
+   Version 1.163, (c) 2010-13,2015-2016,2019 Silas S. Brown
    
    This program uses btyacc (Backtracking YACC)
    To set up:
@@ -350,7 +350,7 @@ NoteSuffix: Natural {last_accidental="";} IgnoreMinuses;
 NoteSuffix: '?'; /* ignore (draw head wrong side of stem) */
 IgnoreMinuses: | '-' IgnoreMinuses; /* typographic adjustments to accidentals */
 NoteExtraSuffix: '=' Ornament; /* TODO finish: */
-Ornament: MaybeLower '=' {printf("\\trill ");} | MaybeLower '+' {printf("\\mordent ");} | MaybeLower '&' {printf("\\turn ");} | '!' /* flutter */ ;
+Ornament: MaybeLower '=' {printf("\\trill ");} | MaybeLower '+' {printf("\\mordent ");} | MaybeLower '&' {printf("\\turn ");} | '!' /* flutter */ ; /* might need btyacc because see OrnamentInsideChord */
 MaybeLower: | '?'; /* TODO: e.g. turn->reverseturn */
 Ornament: B {printf("\\staccatissimo ");/* (shorthand renamed in 2.18 from -| to -! so we'd better write it long to save any confusion if parts of our output are being used without reference to the \version) */} | '.' /* glissandi */ | '_' /* perdendosi */ | Integer {printf("\\fermata ");};
 NoteSuffix: '=' OrnamentInsideChord; /* this probably needs btyacc */
@@ -380,8 +380,8 @@ NoteSuffix: TieToLast {
 NoteExtraSuffix: TieToLast {printf(" %%{ TODO tie last note to prev one %%} ");}; // if specified after ornaments etc
 RestSuffix: Dot {numDots++;};
 RestSuffix: '=' Integer {printf("\\fermata ");};
-Volume: V MaybeColon MaybeCresc Volstring MaybePlayParam {if(!*volBuf || volBuf[strlen(volBuf)-1]==' ') { if(needPling) { printf("%%{ TODO: \\! after %d bar(s) %%} ",needPling); needPling=0; } } else if(needPling) { printf("%%{ TODO: \\! after %d bar(s), then the dynamic %%} ",needPling); needPling=0; }};
-VolumeWithoutTrailingIntegers: V MaybeColon MaybeCresc VolstringMust { if(needPling) { printf("%%{ TODO: \\! after %d bar(s), then the dynamic %%} ",needPling); needPling=0; } };
+Volume: V MaybeColon MaybeCresc Volstring MaybePlayParam {if(!*volBuf || volBuf[strlen(volBuf)-1]==' ') { if(needPling) { printf("%%{ TODO: \\! after %d bar%s %%} ",needPling,(needPling==1)?"":"s"); needPling=0; } } else if(needPling) { printf("%%{ TODO: \\! after %d bar%s, then the dynamic %%} ",needPling,(needPling==1)?"":"s"); needPling=0; }};
+VolumeWithoutTrailingIntegers: V MaybeColon MaybeCresc VolstringMust { if(needPling) { printf("%%{ TODO: \\! after %d bar%s, then the dynamic %%} ",needPling,(needPling==1)?"":"s"); needPling=0; } };
 MaybeColon: | ':' Integer CommaIgnore;
 MaybeCresc: | '<' {mystrcat(volBuf,"\\< ");} MaybeNumBars
             | '>' {mystrcat(volBuf,"\\> ");} MaybeNumBars
