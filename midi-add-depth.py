@@ -1,10 +1,15 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
+# (should work in either Python 2 or Python 3)
 
 # Add depth to MIDI file, Silas S. Brown
 # Based on Python Midi Package by Max M,
 # http://www.mxm.dk/products/public/pythonmidi
 # (sorry I forked it because it was a moving target)
 # License: GPL
+
+def B(s):
+    if type("")==type(u""): return s.encode("utf-8") # Python 3
+    else: return s # Python 2
 
 reverb_by_patch = [0x70,0x70,0x70,0x70,    0x70,0x70,0x70,0x70,
 0x70,0x70,0x70,0x70,    0x70,0x70,0x70,0x70,
@@ -41,8 +46,11 @@ pan_by_patch = [0x40,0x40,0x40,0x40,    0x40,0x40,0x40,0x40,
 0x40,0x40,0x48,0x40,    0x40,0x40,0x40,0x40]
 
 import sys
-from types import StringType
-from cStringIO import StringIO
+try: from cStringIO import StringIO
+except: # Python 3
+    from io import BytesIO as StringIO
+    unichr = chr
+    def chr(x): return unichr(x).encode('latin1')
 from struct import pack, unpack
 def getNibbles(byte): return (byte >> 4 & 0xF, byte & 0xF)
 def setNibbles(hiNibble, loNibble):
@@ -79,10 +87,11 @@ def toBytes(value):
     return unpack('%sB' % len(value), value)
 def fromBytes(value):
     if not value:
-        return ''
+        return B('')
     return pack('%sB' % len(value), *value)
 class RawOutstreamFile:
-    def __init__(self, outfile=''):
+    def __init__(self, outfile=None):
+        if not outfile: outfile = B('')
         self.buffer = StringIO()
         self.outfile = outfile
     def writeSlice(self, str_slice):
@@ -93,7 +102,7 @@ class RawOutstreamFile:
         var = self.writeSlice(writeVar(value))
     def write(self):
         if self.outfile:
-            if isinstance(self.outfile, StringType):
+            if type(self.outfile)==str:
                 outfile = open(self.outfile, 'wb')
                 outfile.write(self.getvalue())
                 outfile.close()
@@ -203,8 +212,8 @@ SMTP_OFFSET     = 0x54
 TIME_SIGNATURE  = 0x58      
 KEY_SIGNATURE   = 0x59      
 SPECIFIC        = 0x7F      
-FILE_HEADER     = 'MThd'
-TRACK_HEADER    = 'MTrk'
+FILE_HEADER     = B('MThd')
+TRACK_HEADER    = B('MTrk')
 TIMING_CLOCK   = 0xF8
 SONG_START     = 0xFA
 SONG_CONTINUE  = 0xFB
@@ -239,7 +248,8 @@ class MidiOutFile:
         self._current_track = new_track
     def get_current_track(self):
         return self._current_track
-    def __init__(self, raw_out=''):
+    def __init__(self, raw_out=None):
+        if not raw_out: raw_out = B('')
         self.raw_out = RawOutstreamFile(raw_out)
         self._absolute_time = 0
         self._relative_time = 0
@@ -290,7 +300,7 @@ class MidiOutFile:
         self.event_slice(chr(TUNING_REQUEST))
     def header(self, format=0, nTracks=1, division=96):
         raw = self.raw_out
-        raw.writeSlice('MThd')
+        raw.writeSlice(FILE_HEADER)
         bew = raw.writeBew
         bew(6, 4) 
         bew(format, 2)
@@ -351,18 +361,18 @@ class MidiOutFile:
     def sequencer_specific(self, data):
         self.meta_slice(SPECIFIC, fromBytes(data))
 class RawInstreamFile:
-    def __init__(self, infile=''):
+    def __init__(self, infile=None):
         if infile:
-            if isinstance(infile, StringType):
+            if type(infile)==str:
                 infile = open(infile, 'rb')
                 self.data = infile.read()
                 infile.close()
             else:
                 self.data = infile.read()
-        else:
-            self.data = ''
+        else: self.data = B('')
         self.cursor = 0
-    def setData(self, data=''):
+    def setData(self, data=None):
+        if not data: data = B('')
         self.data = data
     def setCursor(self, position=0):
         self.cursor = position
@@ -433,8 +443,7 @@ class EventDispatcher:
             hibyte, lobyte = data
             value = (hibyte<<7) + lobyte
             stream.pitch_bend(channel, value)
-        else:
-            raise ValueError, 'Illegal channel message!'
+        else: raise Exception('Illegal channel message')
     def continuous_controllers(self, channel, controller, value):
         stream = self.outstream
         stream.continuous_controller(channel, controller, value)
@@ -513,8 +522,8 @@ class MidiFileParser:
         raw_in = self.raw_in
         header_chunk_type = raw_in.nextSlice(4)
         header_chunk_zise = raw_in.readBew(4)
-        if header_chunk_type != 'MThd':
-            raise TypeError, "It is not a valid midi file!"
+        if header_chunk_type != FILE_HEADER:
+            raise Exception("Invalid MIDI file")
         self.format = raw_in.readBew(2)
         self.nTracks = raw_in.readBew(2)
         self.division = raw_in.readBew(2)
@@ -579,14 +588,16 @@ class MidiFileParser:
             self.parseMTrkChunk() 
         self.dispatch.eof()
 class MidiInFile:
-    def __init__(self, outStream, infile=''):
+    def __init__(self, outStream, infile=None):
+        if not infile: infile = B('')
         self.raw_in = RawInstreamFile(infile)
         self.parser = MidiFileParser(self.raw_in, outStream)
     def read(self):
         p = self.parser
         p.parseMThdChunk()
         p.parseMTrkChunks()
-    def setData(self, data=''):
+    def setData(self, data=None):
+        if not data: data = B('')
         self.raw_in.setData(data)
 
 class MidiToMidi:
@@ -672,5 +683,5 @@ class MidiToMidi:
 
 if __name__ == '__main__':
     if len(sys.argv)<3:
-        print "Syntax: midi-add-depth.py infile outfile"
+        print ("Syntax: midi-add-depth.py infile outfile")
     else: MidiInFile(MidiToMidi(open(sys.argv[2],"wb")), open(sys.argv[1],"rb")).read()
