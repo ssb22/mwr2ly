@@ -1,10 +1,11 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
+# (should work in either Python 2 or Python 3)
 
-# Lilypond SVG Fixer
-# (c) 2019 Silas S. Brown
+# Lilypond SVG Fixer v1.3
+# (c) 2019, 2020 Silas S. Brown
 # License: GPL (same as Lilypond)
 
-# Usage: python2 lilypond-svg-fixer.py < in.svg > out.svg
+# Usage: python lilypond-svg-fixer.py < in.svg > out.svg
 
 # What this does
 # --------------
@@ -25,9 +26,17 @@
 # work around this by replacing space with nbsp within
 # tspan lines.
 
+# Where to find history:
+# on GitHub at https://github.com/ssb22/mwr2ly
+# and on GitLab at https://gitlab.com/ssb22/mwr2ly
+# and on BitBucket https://bitbucket.org/ssb22/mwr2ly
+
+def S(u):
+    if type("")==type(u""): return chr(u) # Python 3
+    else: return unichr(u).encode('utf-8') # Python 2
 def filter(line):
     if not "font-size" in line:
-        if line.rstrip().endswith("</tspan>") and ' ' in line: line = line.replace(' ',unichr(0xa0).encode('utf-8'))
+        if line.rstrip().endswith("</tspan>") and ' ' in line: line = line.replace(' ',S(0xa0))
         return line
     if "scale(0.1)" in line: return line # we've been here before?
     assert line.startswith('<text transform="translate'), "is this really a Lilypond-generated SVG?"
