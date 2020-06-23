@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 # (should work in either Python 2 or Python 3)
 
-# Add depth to MIDI file, Silas S. Brown
-# Based on Python Midi Package by Max M,
-# http://www.mxm.dk/products/public/pythonmidi
-# (sorry I forked it because it was a moving target)
+# Add depth to MIDI file, Silas S. Brown.
+# Used some code from an old version of
+# Python Midi Package by Max M.
 # License: GPL
 
 def B(s):
