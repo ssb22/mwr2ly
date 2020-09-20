@@ -1,16 +1,26 @@
 #!/usr/bin/env python
 # (should work in either Python 2 or Python 3)
 
-# Add depth to MIDI file, Silas S. Brown.
+# Add depth to MIDI file v1.1, Silas S. Brown.
 # Used some code from an old version of
 # Python Midi Package by Max M.
 # License: GPL
 
-def B(s):
-    if type("")==type(u""): return s.encode("utf-8") # Python 3
-    else: return s # Python 2
+# Where to find history:
+# on GitHub at https://github.com/ssb22/mwr2ly
+# and on GitLab at https://gitlab.com/ssb22/mwr2ly
+# and on BitBucket https://bitbucket.org/ssb22/mwr2ly
+# and at https://gitlab.developers.cam.ac.uk/ssb22/mwr2ly
 
-reverb_by_patch = [0x70,0x70,0x70,0x70,    0x70,0x70,0x70,0x70,
+import sys
+patch_map = list(range(128))
+if "--cdp-130" in sys.argv:
+    # Patch changes for Casio CDP-130
+    patch_map = [0,1,2,3,4,3,5,5,6,6,6,6,6,6,6,6,9,9,9,8,9,9,9,9,5,5,5,5,5,5,5,5,0,0,0,0,0,0,0,0,7,7,7,7,7,5,6,0,7,7,7,7,7,7,7,7,9,9,9,9,9,9,9,9,9,9,9,9,7,7,7,7,7,7,7,7,7,7,7,7,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,5,5,5,5,6,9,7,7,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    sys.argv.remove("--cdp-130")
+
+reverb_by_patch = [
+0x70,0x70,0x70,0x70,    0x70,0x70,0x70,0x70,
 0x70,0x70,0x70,0x70,    0x70,0x70,0x70,0x70,
 0x00,0x00,0x7D,0x00,    0x00,0x00,0x00,0x00,
 0x00,0x00,0x00,0x00,    0x00,0x00,0x00,0x00,
@@ -27,7 +37,8 @@ reverb_by_patch = [0x70,0x70,0x70,0x70,    0x70,0x70,0x70,0x70,
 0x00,0x00,0x00,0x00,    0x00,0x00,0x00,0x00,
 0x00,0x00,0x7D,0x00,    0x00,0x7D,0x60,0x7D]
 
-pan_by_patch = [0x40,0x40,0x40,0x40,    0x40,0x40,0x40,0x40,
+pan_by_patch = [
+0x40,0x40,0x40,0x40,    0x40,0x40,0x40,0x40,
 0x40,0x30,0x40,0x32,    0x34,0x36,0x38,0x40,
 0x40,0x40,0x40,0x40,    0x40,0x40,0x40,0x40,
 0x40,0x40,0x40,0x40,    0x40,0x40,0x40,0x40,
@@ -44,7 +55,10 @@ pan_by_patch = [0x40,0x40,0x40,0x40,    0x40,0x40,0x40,0x40,
 0x40,0x40,0x40,0x40,    0x40,0x40,0x40,0x40,
 0x40,0x40,0x48,0x40,    0x40,0x40,0x40,0x40]
 
-import sys
+def B(s):
+    if type("")==type(u""): return s.encode("utf-8") # Python 3
+    else: return s # Python 2
+
 try: from cStringIO import StringIO
 except: # Python 3
     from io import BytesIO as StringIO
@@ -622,7 +636,7 @@ class MidiToMidi:
     def continuous_controller(self, channel, controller, value):
         self.midi.continuous_controller(channel, controller, value)
     def patch_change(self, channel, patch):
-        self.midi.patch_change(channel, patch)
+        self.midi.patch_change(channel, patch_map[patch])
         # Introduce pan/reverb settings
         self.midi.update_time(0)
         self.midi.continuous_controller(channel,10,pan_by_patch[patch])
@@ -682,5 +696,14 @@ class MidiToMidi:
 
 if __name__ == '__main__':
     if len(sys.argv)<3:
-        print ("Syntax: midi-add-depth.py infile outfile")
-    else: MidiInFile(MidiToMidi(open(sys.argv[2],"wb")), open(sys.argv[1],"rb")).read()
+        sys.stderr.write("Syntax: midi-add-depth [--cdp-130] infile|- outfile|-\n")
+        sys.exit(1)
+    if sys.argv[1]=='-':
+        try: inF = sys.stdin.buffer
+        except: inF = sys.stdin
+    else: inF = open(sys.argv[1],"rb")
+    if sys.argv[2]=='-':
+        try: outF = sys.stdout.buffer
+        except: outF = sys.stdout
+    else: outF = open(sys.argv[2],"wb")
+    MidiInFile(MidiToMidi(outF), inF).read()
