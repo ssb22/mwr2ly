@@ -17,6 +17,7 @@ patch_map = list(range(128))
 if "--cdp-130" in sys.argv:
     # Patch changes for Casio CDP-130
     patch_map = [0,1,2,3,4,3,5,5,6,6,6,6,6,6,6,6,9,9,9,8,9,9,9,9,5,5,5,5,5,5,5,5,0,0,0,0,0,0,0,0,7,7,7,7,7,5,6,0,7,7,7,7,7,7,7,7,9,9,9,9,9,9,9,9,9,9,9,9,7,7,7,7,7,7,7,7,7,7,7,7,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,5,5,5,5,6,9,7,7,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    # and on channel 10: available keynums are 33 and 34 (Metronome Click and Metronome Bell), 75, 78 and 80 (claves, mute cuica, mute triangle: these are sounded by the user interface); other keys are silent
     sys.argv.remove("--cdp-130")
 
 reverb_by_patch = [
