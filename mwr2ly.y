@@ -1,7 +1,7 @@
 
 /*
    Manuscript Writer to Lilypond converter
-   Version 1.163, (c) 2010-13,2015-2016,2019 Silas S. Brown
+   Version 1.164, (c) 2010-13,2015-2016,2019,2021 Silas S. Brown
    
    This program uses btyacc (Backtracking YACC)
    To set up:
@@ -112,85 +112,84 @@ although some early ones are missing.
     if(in_phrase) {in_phrase=0; fprintf(stderr,"Warning: unterminated slur in part%c\n",nextPartLetter-1);}
   }
   
+  int yylex();
+  int yyerror(const char*);
+
   %}
 
 %%
 
 Start: input MaybeEnd;
 MaybeEnd: '@' MaybeIgnore | '%' MaybeIgnore | ;
-MaybeIgnore: | Ignore MaybeIgnore;
-
-/* Instead of having input; | input Command, split into bars.
-That avoids the shift-reduce conflict and allows comma to be implemented
-easily (with stems up/down being set) */
+MaybeIgnore: | MaybeIgnore Ignore;
 
 input: /* empty */ | Bar | Bar Barline [YYVALID;] {if(inFirstTimeBar==2) inFirstTimeBar=3; else if(inFirstTimeBar==3) {inFirstTimeBar=0;puts("} }");}} input;
 
 Bar: BarSetup BarInner {suppressNextBarline=0;} BarEnd;
-BarSetup: /* empty */ | BarSetupCommand BarSetup;
-BarEnd: /* empty */ | BarEndCommand BarEnd;
+BarSetup: /* empty */ | BarSetup BarSetupCommand;
+BarEnd: /* empty */ | BarEnd BarEndCommand;
 /* if-btyacc */ BarInner: BarVoice | {printf("<< { "); lilyCurLen=0;} BarVoice ',' {printf(" } \\\\ { ");lilyCurLen=0;} BarVoice {printf(" } >> ");lilyCurLen=0;}; // TODO make sure time signature etc does not occur within a divisi structure (but careful if splitting some things to PreBarCommands, need to include len/8ve state changes and can overload the backtracker)
 //if-bison:  BarInner: BarVoice MaybeVoice2;
 //if-bison:  MaybeVoice2: | ',' {printf(" %%{ TODO start divisi part %%} ");} BarVoice {printf(" %%{ TODO end divisi part %%} ");};
 
-BarVoice: CommandWithOptionalIntegers | CommandWithOptionalIntegers BarVoice;
-BarVoice: Command | Command BarVoiceOrTuplet;
-BarVoiceOrTuplet: BarVoice | Tuplet | Tuplet BarVoice;
+BarVoice: CommandCanEndInt | CommandCanEndInt BarVoice;
+BarVoice: CommandNoIntAtEnd TupletPoint;
+TupletPoint: Tuplet /* at end of bar, sets for next */ | MaybeTuplet BarVoice;
 
-Command: EmbeddedLilypond;
+CommandNoIntAtEnd: EmbeddedLilypond;
 EmbeddedLilypond: '\\' {putchar('\\');} LyIgnorePrint EmbedLilypondEnd;
 EmbedLilypondEnd: '{' {putchar('{'); hadRepeats=1;/*maybe it was a repeat command*/} | '\n' {putchar('\n');};
 EmbeddedLilypond: '}' {putchar('}');};
 EmbeddedLilypond: '{' LyIgnorePrint '\n';
 
 BarSetupCommand: '$' '1' {puts(" } \\alternative { { "); inFirstTimeBar=1;};
-Command: Symbol | CommandOrSetupCommand;
-CommandOrSetupCommand: StateChange | Ignore | CommandToIgnore | TodoCommand;
-CommandWithOptionalIntegers: Volume; /* because could get e.g. V>3 */
-Command: VolumeWithoutTrailingIntegers; /* (volume cmds that end in letters could be classed as Command and followed by tuplet integers; we're relying on btyacc for this to work) */
-/* if-btyacc */ BarSetupCommand: CommandOrSetupCommand; BarEndCommand: CommandOrSetupCommand; /* TODO: bison equivalent? */
+CommandNoIntAtEnd: CommandNoIntOrSetupCommand;
+CommandCanEndInt: CommandEndIntOrSetupCommand;
+CommandNoIntOrSetupCommand: Ignore;
+CommandCanEndInt: Volume; /* because could get e.g. V>3; we put MaybeTuplet in it ourselves for the versions that are compatible with tuplets */
+/* if-btyacc */ BarSetupCommand: CommandNoIntOrSetupCommand | CommandEndIntOrSetupCommand; BarEndCommand: CommandNoIntOrSetupCommand | CommandEndIntOrSetupCommand; /* TODO: bison equivalent? */
 BarSetupCommand: '[' {puts("\\repeat volta 2 {");hadRepeats=1;};
 BarEndCommand: ']' {if(inFirstTimeBar){inFirstTimeBar=2;puts("} {");} else puts("}"); suppressNextBarline=1;};
-CommandToIgnore: Comment
-  | '$' StringCommandToIgnore
-  | '"' LineIgnore /* shell commands etc */
-  | '~' /* orientation */ 
-  | W Integer CommaIgnore /* width stuff */ 
+CommandNoIntOrSetupCommand: Comment
+  | '"' LineIgnore '\n' /* shell commands etc */
+  | '~' /* orientation */;
+CommandEndIntOrSetupCommand:
+    W Integer CommaIgnore /* width stuff */ 
   | H Integer CommaIgnore /* pixels per horiz unit */
   | Z Integer /* staff line size */
   | Y Integer MaybeSharp /* stave gap */
   | S Integer MaybeSharp /* start at stave/page no. */
   | M Integer /* margin */
   | I Integer CommaIgnore /* staves per system etc */
-  | '/' Integer MaybeSlash | '*' Integer /* beaming division */
+  | '/' Unsigned MaybeSlash | '*' Unsigned /* beaming division */
   | '|' Integer /* stem length */ ;
-StringCommandToIgnore: X LineIgnore /* titles etc - TODO */
+CommandNoIntOrSetupCommand: '$' X LineIgnore '\n' /* titles etc - TODO */
 /* $x <fontNo>,<height>[,hoffset[T|A|C title/author/copyright]]text
    (if use T|A|C, hoffset becomes voffset - 2nd line of title etc) */
-  | D UnsignedInt ',' InstDefChars; /* instrument definition */
-  | O Integer CommaIgnore /* 8va params */ 
-  | T Integer CommaIgnore /* timebar params */ 
-  | H Integer /* timebar height */ 
-  | N Integer /* timesig font */ 
-  | I InstrumentCommand
-  | M Integer CommaIgnore /* magnification */
-  | A /* auto-dimensions */
-  | L Integer /* obsolete bar-length command */
-  | Q LineIgnore /* instrument name */ 
-  | S Integer /* start-of-stave gap */
-  | G Integer /* etc */
-  | '$' CharIgnore /* conditional compilation (TODO) */
-  | K CharIgnore /* conditional vars input from keyb */
-  | ':' /* guaranteed to be ignored */
-  /* TODO V ignore all incl newline up to but not including next $ (lyrics or composers' note) */
-  | J Integer CommaIgnore /* text justification */ 
-  | Y Integer /* bar compression constant */
-  | '5' Integer /* number of stave lines */
-  | U LineIgnore /* include file */
-  | '-' /* short score */
-  | E Integer /* espressivo value */ ;
-InstrumentCommand: UnsignedInt SlashIgnore InstCmd2; /* (purely non-MIDI instrument command: ignore) */
-InstrumentCommand: '-' {last_int_value=0;} UnsignedInt {if(last_int_value<128) printf("\\set Staff.midiInstrument = \"%s\"\n",lilypond_inst_names[last_int_value]);} SlashIgnore InstCmd2;
+  | '$' A /* auto-dimensions */
+  | '$' Q LineIgnore '\n' /* instrument name */
+  | '$' ':' /* guaranteed to be ignored */
+  /* TODO '$' V ignore all incl newline up to but not including next $ (lyrics or composers' note) */
+  | '$' U LineIgnore '\n' /* include file */
+  | '$' '$' CharIgnore /* conditional compilation (A-Z toggles, a-z..a-z ignores if unset; 1 and 2=is/isn't first part) */ | '$' K CharIgnore /* conditional vars input from keyb (Y or N) */
+  | '$' '-' /* short score */;
+CommandEndIntOrSetupCommand:
+    '$' D Unsigned ',' InstDefChars /* instrument definition */
+  | '$' O Integer CommaIgnore /* 8va params */
+  | '$' T Integer CommaIgnore /* timebar params */
+  | '$' H Integer /* timebar height */
+  | '$' N Integer /* timesig font */
+  | '$' I InstrumentCommand
+  | '$' M Integer CommaIgnore /* magnification */
+  | '$' L Integer /* obsolete bar-length command */
+  | '$' S Integer /* start-of-stave gap */
+  | '$' G Integer /* key signature alignment gap */
+  | '$' J Integer CommaIgnore /* text justification */ 
+  | '$' Y Integer /* bar compression constant */
+  | '$' '5' Unsigned /* number of stave lines */
+  | '$' E Integer /* espressivo value */ ;
+InstrumentCommand: Unsigned SlashIgnore InstCmd2; /* (purely non-MIDI instrument command: ignore) */
+InstrumentCommand: '-' Unsigned {if(last_int_value<128) printf("\\set Staff.midiInstrument = \"%s\"\n",lilypond_inst_names[last_int_value]);} SlashIgnore InstCmd2;
 InstrumentCommand: NoteLetter Integer; /* actually a percussion-stave command */
 InstrumentCommand: M MidiDump; /* ignore */
 InstCmd2: | ',' Integer /* chorus */ InstCmd3;
@@ -200,20 +199,20 @@ InstCmd5: | ',' Integer /* balance */ InstCmd6;
 InstCmd6: | ',' Integer /* map */ {if(last_int_value<128) printf("\\set Staff.midiInstrument = \"%s\" %% TODO delete the previous setting (has been re-mapped)\n",lilypond_inst_names[last_int_value]);} InstCmd7;
 InstCmd7: | ',' MidiDump;
 InstDefChars /* for FM instruments */: HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit HexDigit;
-MidiDump: /* empty */ | HexDigit MidiDump | X MidiDump | Y MidiDump;
-HexDigit: '0' | '1' | '2' | '3' | '4' |'5' | '6' | '7'|'8'|'9'|A|B|C|D|E|F;
-MaybeSlash: '/' | ;
+MidiDump: /* empty */ | MidiDump HexDigit HexDigit | MidiDump X | MidiDump Y;
+HexDigit: '0'|'1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9'|A|B|C|D|E|F;
+MaybeSlash: | '/' MaybeTuplet;
 MaybeInteger: Integer | ;
-CommandWithOptionalIntegers: '$' F MaybeInteger {puts(" %{ TODO notehead type %} ");};
-Command: X /* TODO if capital, box around the text */
+CommandCanEndInt: '$' F MaybeInteger {puts(" %{ TODO notehead type %} ");};
+CommandNoIntAtEnd: X /* TODO if capital, box around the text */
   Integer /* font no. */ TextCommand;
 TextCommand: ',' /* (TODO actually any non-numeric character, and it knows it's this version because there's already a font loaded, but comma by convention) */
   Integer {markupPos=(last_int_value<3?'^':'_');}
   CommaIgnore /* height[,hoffset] */
-  {textBufPtr=0;} LineIgnoreAddbuf;
-TextCommand: NotCommaIgnore LineIgnore /* font */;
+  {textBufPtr=0;} LineIgnoreAddbuf '\n';
+TextCommand: NotCommaDigitIgnore LineIgnore '\n' /* font */;
 
-CommandWithOptionalIntegers: T {if(clefIsTreble) last_int_value=-2; else last_int_value=10; clefIsTreble=!clefIsTreble;} MaybeInteger MaybeT {
+CommandCanEndInt: T {if(clefIsTreble) last_int_value=-2; else last_int_value=10; clefIsTreble=!clefIsTreble;} MaybeInteger MaybeT {
   switch(last_int_value) {
     case 10: puts("\\clef treble"); break;
     case 17: puts("\\clef \"G^8\""); break;
@@ -227,9 +226,9 @@ CommandWithOptionalIntegers: T {if(clefIsTreble) last_int_value=-2; else last_in
 };
 MaybeT: | T; /* (if present, omit key signature. ignored for now) */
 
-CommandWithOptionalIntegers: '$' C Integer {tempoBPM=last_int_value; last_int_value=4; wasDot=0;} CommaIgnore MaybeDot {printf("\\tempo %d%s = %d ",last_int_value,wasDot?".":"",tempoBPM);} PlusIgnore; // TODO if ends with a dot, this is a Command not a CommandWithOptionalIntegers
+CommandCanEndInt: '$' C Integer {tempoBPM=last_int_value; last_int_value=4; wasDot=0;} CommaIgnore MaybeDot {printf("\\tempo %d%s = %d ",last_int_value,wasDot?".":"",tempoBPM);} PlusIgnore; // TODO if ends with a dot, this is a Command not a CommandCanEndInt
 
-Command: '$' P Integer MaybeDotT MaybePlusT {
+CommandCanEndInt: '$' P Integer MaybeDotT MaybePlusT {
   const char* transposType=NULL;
   if(last_int_value<0 && last_int_value>-12) {
     transposType = negative_transpositions[-last_int_value];
@@ -244,18 +243,18 @@ Command: '$' P Integer MaybeDotT MaybePlusT {
     printf(" \\transpose %s c { ",transposType); transposition_level++;
   } else printf(" %%{ TODO transposition %d semitones %%} ",last_int_value);
   transposition_to_be_played=0;};
-MaybeDotT: | '.' {transposition_to_be_played=1;};
-MaybePlusT: '+' {transposition_to_be_played=2;} | ;
+MaybeDotT:  | '.' {transposition_to_be_played=1;};
+MaybePlusT: | '+' {transposition_to_be_played=2;};
 
-TodoCommand: '$' '*' {puts(" %{ TODO toggle cue mode %} ");};
-Command: '$' '/' BarlineType;
+CommandNoIntOrSetupCommand: '$' '*' {puts(" %{ TODO toggle cue mode %} ");};
+CommandNoIntAtEnd: '$' '/' BarlineType;
 BarlineType: '0' {puts("%{ TODO invisible barlines %}");} | '/' {puts("%{ TODO normal barlines %}");} | '-' {puts("%{ TODO dotted barlines %}");};
-CommandWithOptionalIntegers: Q {last_int_value=1;} MaybeInteger {printf(" %%{ TODO bracket the last %d staves %%} ",last_int_value);};
-Command: '^' {bow="\\upbow ";} MaybeCaret {mystrcat(volBuf,bow);};
-Command: '$' R { rests_are_skips = !rests_are_skips; };
-TodoCommand: '$' '#' {puts(" %{ TODO toggle rests-group-to-multibar %} ");};
+CommandCanEndInt: Q {last_int_value=1;} MaybeInteger {printf(" %%{ TODO bracket the last %d staves %%} ",last_int_value);};
+CommandNoIntAtEnd: '^' {bow="\\upbow ";} MaybeCaret {mystrcat(volBuf,bow);};
+CommandNoIntAtEnd: '$' R { rests_are_skips = !rests_are_skips; };
+CommandNoIntOrSetupCommand: '$' '#' {puts(" %{ TODO toggle rests-group-to-multibar %} ");};
 BarSetupCommand: '$' '|' {puts("\\bar \"||\"");} ; /* TODO or "|." if at end of piece */
-Command: U Integer { /* bar numbering parameters (TODO capital U means box around them; height param 0 turns numbering off) */
+CommandCanEndInt: U Integer { /* bar numbering parameters (TODO capital U means box around them; height param 0 turns numbering off) */
   if(last_int_value>0) {
     printf("\\override Score.BarNumber #'break-visibility = #end-of-line-invisible\n\\set Score.barNumberVisibility = #(every-nth-bar-number-visible %d)\n",last_int_value);
     overridden_lilypond_bar_numbering = 1;
@@ -264,22 +263,22 @@ Command: U Integer { /* bar numbering parameters (TODO capital U means box aroun
     overridden_lilypond_bar_numbering = 0;
   }
 } CommaIgnore;
-MaybeSharp: | '#';
+MaybeSharp: | '#' MaybeTuplet;
 MaybeDot: | '.' {wasDot=1;};
-StateChange: LenSelect | Octave;
 BarSetupCommand: PartSelect;
-Symbol /* ? */: KeySignature | TimeSignature;
-Symbol: OpenPhrase | ClosePhrase;
+CommandCanEndInt: OpenPhrase;
 PartSelect: P Integer {partOK=(last_int_value!=1);} CommaIgnore {
   if (partOK) { close_part(); printf("part%c={ \\setup ",nextPartLetter++); }
   lilyCurLen=0;
   /* TODO if some things are set BEFORE the part command e.g. instrument, clef, these should be moved to after it */
 };
-CommaIgnore: | ',' Integer CommaIgnore; /* note: does not specify how many params to expect, unlike real MWR which stops reading (so another comma could be for divisi, but I hope nobody wrote an MWR file that's THAT unclear) */
+CommaIgnore: | CommaIgnore ',' Integer; /* note: does not specify how many params to expect, unlike real MWR which stops reading (so another comma could be for divisi, but I hope nobody wrote an MWR file that's THAT unclear) */
 PlusIgnore: | '+' Integer;
-SlashIgnore: | '/' Integer SlashIgnore;
-LenSelect: L Integer {curLen=last_int_value;};
+SlashIgnore: | SlashIgnore '/' Integer;
+CommandEndIntOrSetupCommand: L UnsignedNonZero {curLen=last_int_value;};
 Octave: OctaveUp | OctaveDown | OctaveSelect;
+CommandNoIntOrSetupCommand: OctaveUp | OctaveDown;
+CommandEndIntOrSetupCommand: OctaveSelect;
 OctaveSelect: O Integer {curOctave=last_int_value;};
 OctaveDown: '<' {curOctave--;};
 OctaveUp:   '>' {curOctave++;};
@@ -289,9 +288,9 @@ Barline: SpaceTab Barline2 {
   puts("|");
   memcpy(barAccidentals,keysigAccidentals,sizeof(char*)*7);
 } MaybeInteger; /* (if integer, it's 8va params for next bar, ignored (TODO?)) */
-Barline2: /* empty */ | SpaceTab Barline2 | Ignore;
+Barline2: /* empty */ | Barline2 SpaceTab | Barline2 Ignore SpaceTab;
 MaybeClosePhrase: | ClosePhrase; // needs to be before any tuplet }, not after
-Symbol: TimeTaker MaybeClosePhrase {
+CommandNoIntAtEnd: TimeTaker /* (well, CAN be int at end if it's decorated with a fermata, but we prefer shift to reduce there) */ MaybeClosePhrase {
   if(textBufPtr) {
     int i;
     printf("%c\\markup{",markupPos);
@@ -355,7 +354,7 @@ NoteSuffix: Flat {last_accidental="es";} IgnoreMinuses;
 NoteSuffix: Sharp {last_accidental="is";} IgnoreMinuses;
 NoteSuffix: Natural {last_accidental="";} IgnoreMinuses;
 NoteSuffix: '?'; /* ignore (draw head wrong side of stem) */
-IgnoreMinuses: | '-' IgnoreMinuses; /* typographic adjustments to accidentals */
+IgnoreMinuses: | IgnoreMinuses '-'; /* typographic adjustments to accidentals */
 NoteExtraSuffix: '=' Ornament; /* TODO finish: */
 Ornament: MaybeLower '=' {printf("\\trill ");} | MaybeLower '+' {printf("\\mordent ");} | MaybeLower '&' {printf("\\turn ");} | '!' /* flutter */ ; /* might need btyacc because see OrnamentInsideChord */
 MaybeLower: | '?'; /* TODO: e.g. turn->reverseturn */
@@ -386,31 +385,32 @@ NoteSuffix: TieToLast {
 };
 NoteExtraSuffix: TieToLast {printf(" %%{ TODO tie last note to prev one %%} ");}; // if specified after ornaments etc
 RestSuffix: Dot {numDots++;};
-RestSuffix: '=' Integer {printf("\\fermata ");};
-Volume: V MaybeColon MaybeCresc Volstring MaybePlayParam {if(!*volBuf || volBuf[strlen(volBuf)-1]==' ') { if(needPling) { printf("%%{ TODO: \\! after %d bar%s %%} ",needPling,(needPling==1)?"":"s"); needPling=0; } } else if(needPling) { printf("%%{ TODO: \\! after %d bar%s, then the dynamic %%} ",needPling,(needPling==1)?"":"s"); needPling=0; }};
-VolumeWithoutTrailingIntegers: V MaybeColon MaybeCresc VolstringMust { if(needPling) { printf("%%{ TODO: \\! after %d bar%s, then the dynamic %%} ",needPling,(needPling==1)?"":"s"); needPling=0; } };
-MaybeColon: | ':' Integer CommaIgnore;
-MaybeCresc: | '<' {mystrcat(volBuf,"\\< ");} MaybeNumBars
+RestSuffix: '=' Unsigned {printf("\\fermata ");};
+Volume: V MaybeFont CommaIgnore VolumeRest {if(!*volBuf || volBuf[strlen(volBuf)-1]==' ') { if(needPling) { printf("%%{ TODO: \\! or the dynamic after %d bar%s %%} ",needPling,(needPling==1)?"":"s"); needPling=0; } } else if(needPling) { printf("%%{ TODO: \\! after %d bar%s, then the dynamic %%} ",needPling,(needPling==1)?"":"s"); needPling=0; }};
+VolumeRest: Cresc MaybeVolstringAndOrPlayParam | Volstring TupletOrPlayParam;
+MaybeVolstringAndOrPlayParam: /* nothing */ | PlayParam | Volstring TupletOrPlayParam;
+TupletOrPlayParam: /* nothing */ | Tuplet | PlayParam;
+TupletOrPlayParam: Dot MaybeTuplet; // TODO ANY character out of context can be ignored by MWR, e.g. you can use '.' to separate 'vff' from note 'f'
+MaybeFont: | ':' Integer;
+Cresc: '<' {mystrcat(volBuf,"\\< ");} MaybeNumBars
             | '>' {mystrcat(volBuf,"\\> ");} MaybeNumBars
 	    | C {mystrcat(volBuf,"\\< ");} MaybeNumBars
 	    | D {mystrcat(volBuf,"\\> ");} MaybeNumBars;
 MaybeNumBars: {needPling=1;} | Integer {needPling=last_int_value;};
-MaybePlayParam: | ',' Integer;
-MaybePlayParam: Dot; // TODO ANY character out of context can be ignored by MWR, e.g. you can use '.' to separate 'vff' from note 'f'
-VolstringMust: M P {mystrcat(volBuf,"\\mp");};
-VolstringMust: M F {mystrcat(volBuf,"\\mf");};
-Volstring: | VolstringMust;
-VolstringMust: P {mystrcat(volBuf,"\\"); mystrcat(volBuf,"p");} VolstringMorePs;
-VolstringMust: F {mystrcat(volBuf,"\\"); mystrcat(volBuf,"f");} VolstringMoreFs;
+PlayParam: ',' Integer;
+Volstring: M P {mystrcat(volBuf,"\\mp");};
+Volstring: M F {mystrcat(volBuf,"\\mf");};
+Volstring: P {mystrcat(volBuf,"\\"); mystrcat(volBuf,"p");} VolstringMorePs;
+Volstring: F {mystrcat(volBuf,"\\"); mystrcat(volBuf,"f");} VolstringMoreFs;
 VolstringMorePs: | P {mystrcat(volBuf,"p");} VolstringMorePs;
 VolstringMoreFs: | F {mystrcat(volBuf,"f");} VolstringMoreFs;
-TimeSignature: J Integer {timeTop=last_int_value;} ',' Integer {timeBottom=last_int_value; printf("\\time %d/%d ",timeTop,timeBottom);};
-KeySignature: K '0' MaybeAccidental {
+CommandCanEndInt: J UnsignedNonZero {timeTop=last_int_value;} ',' UnsignedNonZero {timeBottom=last_int_value; printf("\\time %d/%d ",timeTop,timeBottom);};
+CommandNoIntAtEnd: K '0' /* single char not count as int at end */ MaybeAccidental {
   puts("\\key c \\major %{ TODO check it's in all the parts %} ");
   { int i; for(i=0;i<7;i++) keysigAccidentals[i]=barAccidentals[i]=""; }
 };
 MaybeAccidental: | KeyAccidental;
-KeySignature: K Integer KeyAccidental {
+CommandNoIntAtEnd: K UnsignedNonZero KeyAccidental {
   int curAcc,curKey,incAcc;
   char *curKeyExtra="";
   int i; for(i=0;i<7;i++) keysigAccidentals[i]=barAccidentals[i]="";
@@ -436,10 +436,11 @@ KeySignature: K Integer KeyAccidental {
 };
 KeyAccidental: Sharp {last_accidental="is";};
 KeyAccidental: Flat {last_accidental="es";};
-Command: ':'; /* guaranteed unused separator, normally used before a tuplet number but also e.g. v<:f to mean hairpin + note F rather than hairpin to forte */
-Command: '.'; /* sometimes used as a separator */
+CommandNoIntAtEnd: ':'; /* guaranteed unused separator, normally used before a tuplet number but also e.g. v<:f to mean hairpin + note F rather than hairpin to forte */
+CommandNoIntAtEnd: '.'; /* sometimes used as a separator */
 OpenPhrase: '(' {need_to_open_phrase++; in_phrase++;} MaybeIntList;
 MaybeIntList: | Integer CommaIgnore;
+CommandNoIntAtEnd: ClosePhrase;
 ClosePhrase: ')' {in_phrase--; if (!in_phrase) printf(") ");} MaybeCaret; // ^ = force phrasemark
 MaybeCaret: | '^' {bow="\\downbow ";};
 A: 'A' | 'a'; B: 'B' | 'b'; C: 'C' | 'c';
@@ -460,24 +461,33 @@ TenutoExtra: | '.' { staccato=1; } | '_' { hasTenuto="-> -- "; };
 TieToLast: '\'';
 Ignore: '\n';
 Comment: ';' { printf("%% "); } LineIgnorePrint '\n' { putchar('\n'); };
-LineIgnore: /* empty */ | CharIgnore LineIgnore;
-LineIgnoreAddbuf: | CharAddbuf LineIgnoreAddbuf;
-LineIgnorePrint: | CharPrint LineIgnorePrint;
-LyIgnorePrint: | LyCharPrint LyIgnorePrint; /* excludes { */
+LineIgnore: /* empty */ | LineIgnore CharIgnore;
+LineIgnoreAddbuf: | LineIgnoreAddbuf CharAddbuf;
+LineIgnorePrint: | LineIgnorePrint CharPrint;
+LyIgnorePrint: | LyIgnorePrint LyCharPrint; /* excludes { */
 LyCharPrint: ' '{putchar(' ');}|'!'{putchar('!');}|'"'{putchar('"');}|'#'{putchar('#');}|'$'{putchar('$');}|'%'{putchar('%');}|'&'{putchar('&');}|'\''{putchar('\'');}|'('{putchar('(');}|')'{putchar(')');}|'*'{putchar('*');}|'+'{putchar('+');}|','{putchar(',');}|'-'{putchar('-');}|'.'{putchar('.');}|'/'{putchar('/');}|'0'{putchar('0');}|'1'{putchar('1');}|'2'{putchar('2');}|'3'{putchar('3');}|'4'{putchar('4');}|'5'{putchar('5');}|'6'{putchar('6');}|'7'{putchar('7');}|'8'{putchar('8');}|'9'{putchar('9');}|':'{putchar(':');}|';'{putchar(';');}|'<'{putchar('<');}|'='{putchar('=');}|'>'{putchar('>');}|'?'{putchar('?');}|'@'{putchar('@');}|'A'{putchar('A');}|'B'{putchar('B');}|'C'{putchar('C');}|'D'{putchar('D');}|'E'{putchar('E');}|'F'{putchar('F');}|'G'{putchar('G');}|'H'{putchar('H');}|'I'{putchar('I');}|'J'{putchar('J');}|'K'{putchar('K');}|'L'{putchar('L');}|'M'{putchar('M');}|'N'{putchar('N');}|'O'{putchar('O');}|'P'{putchar('P');}|'Q'{putchar('Q');}|'R'{putchar('R');}|'S'{putchar('S');}|'T'{putchar('T');}|'U'{putchar('U');}|'V'{putchar('V');}|'W'{putchar('W');}|'X'{putchar('X');}|'Y'{putchar('Y');}|'Z'{putchar('Z');}|'['{putchar('[');}|']'{putchar(']');}|'^'{putchar('^');}|'_'{putchar('_');}|'`'{putchar('`');}|'a'{putchar('a');}|'b'{putchar('b');}|'c'{putchar('c');}|'d'{putchar('d');}|'e'{putchar('e');}|'f'{putchar('f');}|'g'{putchar('g');}|'h'{putchar('h');}|'i'{putchar('i');}|'j'{putchar('j');}|'k'{putchar('k');}|'l'{putchar('l');}|'m'{putchar('m');}|'n'{putchar('n');}|'o'{putchar('o');}|'p'{putchar('p');}|'q'{putchar('q');}|'r'{putchar('r');}|'s'{putchar('s');}|'t'{putchar('t');}|'u'{putchar('u');}|'v'{putchar('v');}|'w'{putchar('w');}|'x'{putchar('x');}|'y'{putchar('y');}|'z'{putchar('z');}|'}'{putchar('}');}|'|'{putchar('|');}|'\\'{putchar('\\');}|'~'{putchar('~');};
 CharPrint: LyCharPrint | '{'{putchar('{');};
 CharAddbuf: ' '{bufChar(' ');}|'!'{bufChar('!');}|'"'{bufChar('"');}|'#'{bufChar('#');}|'$'{bufChar('$');}|'%'{bufChar('%');}|'&'{bufChar('&');}|'\''{bufChar('\'');}|'('{bufChar('(');}|')'{bufChar(')');}|'*'{bufChar('*');}|'+'{bufChar('+');}|','{bufChar(',');}|'-'{bufChar('-');}|'.'{bufChar('.');}|'/'{bufChar('/');}|'0'{bufChar('0');}|'1'{bufChar('1');}|'2'{bufChar('2');}|'3'{bufChar('3');}|'4'{bufChar('4');}|'5'{bufChar('5');}|'6'{bufChar('6');}|'7'{bufChar('7');}|'8'{bufChar('8');}|'9'{bufChar('9');}|':'{bufChar(':');}|';'{bufChar(';');}|'<'{bufChar('<');}|'='{bufChar('=');}|'>'{bufChar('>');}|'?'{bufChar('?');}|'@'{bufChar('@');}|'A'{bufChar('A');}|'B'{bufChar('B');}|'C'{bufChar('C');}|'D'{bufChar('D');}|'E'{bufChar('E');}|'F'{bufChar('F');}|'G'{bufChar('G');}|'H'{bufChar('H');}|'I'{bufChar('I');}|'J'{bufChar('J');}|'K'{bufChar('K');}|'L'{bufChar('L');}|'M'{bufChar('M');}|'N'{bufChar('N');}|'O'{bufChar('O');}|'P'{bufChar('P');}|'Q'{bufChar('Q');}|'R'{bufChar('R');}|'S'{bufChar('S');}|'T'{bufChar('T');}|'U'{bufChar('U');}|'V'{bufChar('V');}|'W'{bufChar('W');}|'X'{bufChar('X');}|'Y'{bufChar('Y');}|'Z'{bufChar('Z');}|'['{bufChar('[');}|'\\'{bufChar('\\');}|']'{bufChar(']');}|'^'{bufChar('^');}|'_'{bufChar('_');}|'`'{bufChar('`');}|'a'{bufChar('a');}|'b'{bufChar('b');}|'c'{bufChar('c');}|'d'{bufChar('d');}|'e'{bufChar('e');}|'f'{bufChar('f');}|'g'{bufChar('g');}|'h'{bufChar('h');}|'i'{bufChar('i');}|'j'{bufChar('j');}|'k'{bufChar('k');}|'l'{bufChar('l');}|'m'{bufChar('m');}|'n'{bufChar('n');}|'o'{bufChar('o');}|'p'{bufChar('p');}|'q'{bufChar('q');}|'r'{bufChar('r');}|'s'{bufChar('s');}|'t'{bufChar('t');}|'u'{bufChar('u');}|'v'{bufChar('v');}|'w'{bufChar('w');}|'x'{bufChar('x');}|'y'{bufChar('y');}|'z'{bufChar('z');}|'{'{bufChar('{');}|'|'{bufChar('|');}|'}'{bufChar('}');}|'~'{bufChar('~');};
-NotCommaIgnore: ' '|'!'|'"'|'#'|'$'|'%'|'&'|'\''|'('|')'|'*'|'+'|'-'|'.'|'/'|'0'|'1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9'|':'|';'|'<'|'='|'>'|'?'|'@'|'A'|'B'|'C'|'D'|'E'|'F'|'G'|'H'|'I'|'J'|'K'|'L'|'M'|'N'|'O'|'P'|'Q'|'R'|'S'|'T'|'U'|'V'|'W'|'X'|'Y'|'Z'|'['|'\\'|']'|'^'|'_'|'`'|'a'|'b'|'c'|'d'|'e'|'f'|'g'|'h'|'i'|'j'|'k'|'l'|'m'|'n'|'o'|'p'|'q'|'r'|'s'|'t'|'u'|'v'|'w'|'x'|'y'|'z'|'{'|'|'|'}'|'~';
-CharIgnore: NotCommaIgnore | ',';
+NotCommaDigitIgnore: ' '|'!'|'"'|'#'|'$'|'%'|'&'|'\''|'('|')'|'*'|'+'|'-'|'.'|'/'|':'|';'|'<'|'='|'>'|'?'|'@'|'A'|'B'|'C'|'D'|'E'|'F'|'G'|'H'|'I'|'J'|'K'|'L'|'M'|'N'|'O'|'P'|'Q'|'R'|'S'|'T'|'U'|'V'|'W'|'X'|'Y'|'Z'|'['|'\\'|']'|'^'|'_'|'`'|'a'|'b'|'c'|'d'|'e'|'f'|'g'|'h'|'i'|'j'|'k'|'l'|'m'|'n'|'o'|'p'|'q'|'r'|'s'|'t'|'u'|'v'|'w'|'x'|'y'|'z'|'{'|'|'|'}'|'~';
+CharIgnore: NotCommaDigitIgnore | ','|'0'|'1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9';
 
-Integer: {last_int_value=0;} UnsignedInt | '-' {last_int_value=0;} UnsignedInt {last_int_value=-last_int_value;};
-UnsignedInt: Digit RestOfUnsignedInt;
-RestOfUnsignedInt: /* epsilon */ | UnsignedInt;
-Digit: '0' {last_int_value=last_int_value*10;}; Digit: '1' {last_int_value=last_int_value*10+1;}; Digit: '2' {last_int_value=last_int_value*10+2;}; Digit: '3' {last_int_value=last_int_value*10+3;};
-Digit: '4' {last_int_value=last_int_value*10+4;}; Digit: '5' {last_int_value=last_int_value*10+5;}; Digit: '6' {last_int_value=last_int_value*10+6;}; Digit: '7' {last_int_value=last_int_value*10+7;};
-Digit: '8' {last_int_value=last_int_value*10+8;}; Digit: '9' {last_int_value=last_int_value*10+9;};
+Integer: Unsigned | '-' Unsigned {last_int_value=-last_int_value;};
+Unsigned: {last_int_value=0;} Digit RestOfUnsigned;
+UnsignedNonZero: {last_int_value=0;} DigitNonZero RestOfUnsigned;
+RestOfUnsigned: /* epsilon */ | RestOfUnsigned Digit;
+Digit: '0' {last_int_value*=10;} | DigitNonZero;
+DigitNonZero: '1' {last_int_value=last_int_value*10+1;};
+DigitNonZero: '2' {last_int_value=last_int_value*10+2;};
+DigitNonZero: '3' {last_int_value=last_int_value*10+3;};
+DigitNonZero: '4' {last_int_value=last_int_value*10+4;};
+DigitNonZero: '5' {last_int_value=last_int_value*10+5;};
+DigitNonZero: '6' {last_int_value=last_int_value*10+6;};
+DigitNonZero: '7' {last_int_value=last_int_value*10+7;};
+DigitNonZero: '8' {last_int_value=last_int_value*10+8;};
+DigitNonZero: '9' {last_int_value=last_int_value*10+9;};
 
-Tuplet: Integer {fitIn=last_int_value;} TupletBottomVal {
+MaybeTuplet: | Tuplet;
+Tuplet: UnsignedNonZero {fitIn=last_int_value;} TupletBottomVal {
   printf(" \\times %d/%d { ",last_int_value,fitIn);
   tuplet_stop_after = fitIn*128/curLen;
 } MaybeEquals; /* TODO if '=' then don't print a tuplet bracket */
@@ -506,7 +516,7 @@ int yylex () {
   else return c;
 }
 
-int yyerror (char* s) {
+int yyerror (const char* s) {
   int c;
   fprintf(stderr,"Line %d col %d: %s (got `'%c'')\nRest of line: ",theLineNumber,theColNumber,s,theCharacter);
   do fputc(c=getchar(),stderr); while (c!='\n' && !feof(stdin));
