@@ -43,6 +43,7 @@
 # and on GitLab at https://gitlab.com/ssb22/mwr2ly
 # and on BitBucket https://bitbucket.org/ssb22/mwr2ly
 # and at https://gitlab.developers.cam.ac.uk/ssb22/mwr2ly
+# and in China: https://gitee.com/ssb22/mwr2ly
 
 def S(u):
     if type("")==type(u""): return chr(u) # Python 3
