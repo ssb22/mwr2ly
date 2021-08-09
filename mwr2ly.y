@@ -1,13 +1,14 @@
 
 /*
    Manuscript Writer to Lilypond converter
-   Version 1.165, (c) 2010-13,2015-2016,2019,2021 Silas S. Brown
+   Version 1.166, (c) 2010-13,2015-2016,2019,2021 Silas S. Brown
    
    This program uses btyacc (Backtracking YACC)
    To set up:
    1. Install package btyacc (or compile from source; on
       some systems e.g. Mac you have to remove -static
-      from the Makefile of btyacc 3.0 before running make)
+      from the Makefile of btyacc 3.0 before running make,
+      plus with newer compilers add #include <string.h> to mstring.c)
    2. btyacc mwr2ly.y && g++ -Wno-write-strings y[._]tab.c -o mwr2ly
    
    If you can't get btyacc (and g++) or if you
@@ -137,13 +138,13 @@ BarEnd: /* empty */ | BarEnd BarEndCommand;
 
 BarVoice: CommandCanEndInt | CommandCanEndInt BarVoice;
 BarVoice: CommandNoIntAtEnd TupletPoint;
-TupletPoint: Tuplet /* at end of bar, sets for next */ | MaybeTuplet BarVoice;
+TupletPoint: MaybeTuplet /* at end of bar, sets for next */ | MaybeTuplet BarVoice;
 
 CommandNoIntAtEnd: EmbeddedLilypond;
 EmbeddedLilypond: '\\' {putchar('\\');} LyIgnorePrint EmbedLilypondEnd;
 EmbedLilypondEnd: '{' {putchar('{'); hadRepeats=1;/*maybe it was a repeat command*/} | '\n' {putchar('\n');};
 EmbeddedLilypond: '}' {putchar('}');};
-EmbeddedLilypond: '{' LyIgnorePrint '\n';
+EmbeddedLilypond: '{' LyIgnorePrintAll '\n';
 
 BarSetupCommand: '$' '1' {puts(" } \\alternative { { "); inFirstTimeBar=1;};
 CommandNoIntAtEnd: CommandNoIntOrSetupCommand;
@@ -468,6 +469,7 @@ LineIgnore: /* empty */ | LineIgnore CharIgnore;
 LineIgnoreAddbuf: | LineIgnoreAddbuf CharAddbuf;
 LineIgnorePrint: | LineIgnorePrint CharPrint;
 LyIgnorePrint: | LyIgnorePrint LyCharPrint; /* excludes { */
+LyIgnorePrintAll: | LyIgnorePrintAll CharPrint; /* includes { */
 LyCharPrint: ' '{putchar(' ');}|'!'{putchar('!');}|'"'{putchar('"');}|'#'{putchar('#');}|'$'{putchar('$');}|'%'{putchar('%');}|'&'{putchar('&');}|'\''{putchar('\'');}|'('{putchar('(');}|')'{putchar(')');}|'*'{putchar('*');}|'+'{putchar('+');}|','{putchar(',');}|'-'{putchar('-');}|'.'{putchar('.');}|'/'{putchar('/');}|'0'{putchar('0');}|'1'{putchar('1');}|'2'{putchar('2');}|'3'{putchar('3');}|'4'{putchar('4');}|'5'{putchar('5');}|'6'{putchar('6');}|'7'{putchar('7');}|'8'{putchar('8');}|'9'{putchar('9');}|':'{putchar(':');}|';'{putchar(';');}|'<'{putchar('<');}|'='{putchar('=');}|'>'{putchar('>');}|'?'{putchar('?');}|'@'{putchar('@');}|'A'{putchar('A');}|'B'{putchar('B');}|'C'{putchar('C');}|'D'{putchar('D');}|'E'{putchar('E');}|'F'{putchar('F');}|'G'{putchar('G');}|'H'{putchar('H');}|'I'{putchar('I');}|'J'{putchar('J');}|'K'{putchar('K');}|'L'{putchar('L');}|'M'{putchar('M');}|'N'{putchar('N');}|'O'{putchar('O');}|'P'{putchar('P');}|'Q'{putchar('Q');}|'R'{putchar('R');}|'S'{putchar('S');}|'T'{putchar('T');}|'U'{putchar('U');}|'V'{putchar('V');}|'W'{putchar('W');}|'X'{putchar('X');}|'Y'{putchar('Y');}|'Z'{putchar('Z');}|'['{putchar('[');}|']'{putchar(']');}|'^'{putchar('^');}|'_'{putchar('_');}|'`'{putchar('`');}|'a'{putchar('a');}|'b'{putchar('b');}|'c'{putchar('c');}|'d'{putchar('d');}|'e'{putchar('e');}|'f'{putchar('f');}|'g'{putchar('g');}|'h'{putchar('h');}|'i'{putchar('i');}|'j'{putchar('j');}|'k'{putchar('k');}|'l'{putchar('l');}|'m'{putchar('m');}|'n'{putchar('n');}|'o'{putchar('o');}|'p'{putchar('p');}|'q'{putchar('q');}|'r'{putchar('r');}|'s'{putchar('s');}|'t'{putchar('t');}|'u'{putchar('u');}|'v'{putchar('v');}|'w'{putchar('w');}|'x'{putchar('x');}|'y'{putchar('y');}|'z'{putchar('z');}|'}'{putchar('}');}|'|'{putchar('|');}|'\\'{putchar('\\');}|'~'{putchar('~');};
 CharPrint: LyCharPrint | '{'{putchar('{');};
 CharAddbuf: ' '{bufChar(' ');}|'!'{bufChar('!');}|'"'{bufChar('"');}|'#'{bufChar('#');}|'$'{bufChar('$');}|'%'{bufChar('%');}|'&'{bufChar('&');}|'\''{bufChar('\'');}|'('{bufChar('(');}|')'{bufChar(')');}|'*'{bufChar('*');}|'+'{bufChar('+');}|','{bufChar(',');}|'-'{bufChar('-');}|'.'{bufChar('.');}|'/'{bufChar('/');}|'0'{bufChar('0');}|'1'{bufChar('1');}|'2'{bufChar('2');}|'3'{bufChar('3');}|'4'{bufChar('4');}|'5'{bufChar('5');}|'6'{bufChar('6');}|'7'{bufChar('7');}|'8'{bufChar('8');}|'9'{bufChar('9');}|':'{bufChar(':');}|';'{bufChar(';');}|'<'{bufChar('<');}|'='{bufChar('=');}|'>'{bufChar('>');}|'?'{bufChar('?');}|'@'{bufChar('@');}|'A'{bufChar('A');}|'B'{bufChar('B');}|'C'{bufChar('C');}|'D'{bufChar('D');}|'E'{bufChar('E');}|'F'{bufChar('F');}|'G'{bufChar('G');}|'H'{bufChar('H');}|'I'{bufChar('I');}|'J'{bufChar('J');}|'K'{bufChar('K');}|'L'{bufChar('L');}|'M'{bufChar('M');}|'N'{bufChar('N');}|'O'{bufChar('O');}|'P'{bufChar('P');}|'Q'{bufChar('Q');}|'R'{bufChar('R');}|'S'{bufChar('S');}|'T'{bufChar('T');}|'U'{bufChar('U');}|'V'{bufChar('V');}|'W'{bufChar('W');}|'X'{bufChar('X');}|'Y'{bufChar('Y');}|'Z'{bufChar('Z');}|'['{bufChar('[');}|'\\'{bufChar('\\');}|']'{bufChar(']');}|'^'{bufChar('^');}|'_'{bufChar('_');}|'`'{bufChar('`');}|'a'{bufChar('a');}|'b'{bufChar('b');}|'c'{bufChar('c');}|'d'{bufChar('d');}|'e'{bufChar('e');}|'f'{bufChar('f');}|'g'{bufChar('g');}|'h'{bufChar('h');}|'i'{bufChar('i');}|'j'{bufChar('j');}|'k'{bufChar('k');}|'l'{bufChar('l');}|'m'{bufChar('m');}|'n'{bufChar('n');}|'o'{bufChar('o');}|'p'{bufChar('p');}|'q'{bufChar('q');}|'r'{bufChar('r');}|'s'{bufChar('s');}|'t'{bufChar('t');}|'u'{bufChar('u');}|'v'{bufChar('v');}|'w'{bufChar('w');}|'x'{bufChar('x');}|'y'{bufChar('y');}|'z'{bufChar('z');}|'{'{bufChar('{');}|'|'{bufChar('|');}|'}'{bufChar('}');}|'~'{bufChar('~');};
