@@ -1,0 +1,8 @@
+# -*- mode: makefile -*-
+test:
+	python3 lilypond-svg-fixer.py </dev/null # just check it compiles
+	python2 lilypond-svg-fixer.py </dev/null
+	sed -e 's/\[YYVALID;\]//g' -e 's,//if-bison:,,' < mwr2ly.y | grep -v if-btyacc > mwr2ly2.y
+	bison mwr2ly2.y
+	gcc mwr2ly2.tab.c -o mwr2ly
+	echo "o2l4cdef gab>c @" | ./mwr2ly | grep "^g' a' b' c'' |" >/dev/null
