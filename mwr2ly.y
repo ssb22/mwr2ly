@@ -1,7 +1,7 @@
 
 /*
    Manuscript Writer to Lilypond converter
-   Version 1.166, (c) 2010-13,2015-2016,2019,2021 Silas S. Brown
+   Version 1.167, (c) 2010-13,2015-2016,2019,2021 Silas S. Brown
    
    This program uses btyacc (Backtracking YACC)
    To set up:
@@ -75,7 +75,7 @@ although some early ones are missing.
   int rests_are_skips = 0;
   int suppressNextBarline=0;
   int last_int_value, needPling=0;
-  int partOK; int clefIsTreble=1;
+  int partOK; int clef=10;
   int transposition_to_be_played=0, transposition_level=0;
   int in_phrase=0; // if nested phrasing, inner could be tie (TODO or outer could be phrasemarks rather than slurs)
   char nextPartLetter='A', markupPos;
@@ -208,7 +208,7 @@ HexDigit: '0'|'1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9'|A|B|C|D|E|F;
 MaybeSlash: | '/' MaybeTuplet;
 MaybeInteger: Integer | ;
 CommandCanEndInt: '$' F MaybeInteger {puts(" %{ TODO notehead type %} ");};
-CommandNoIntAtEnd: X /* TODO if capital, box around the text */
+CommandNoIntOrSetupCommand: X /* TODO if capital, box around the text */
   Integer /* font no. */ TextCommand;
 TextCommand: ',' /* (TODO actually any non-numeric character, and it knows it's this version because there's already a font loaded, but comma by convention) */
   Integer {markupPos=(last_int_value<3?'^':'_');}
@@ -216,8 +216,9 @@ TextCommand: ',' /* (TODO actually any non-numeric character, and it knows it's 
   {textBufPtr=0;} LineIgnoreAddbuf '\n';
 TextCommand: NotCommaDigitIgnore LineIgnore '\n' /* font */;
 
-CommandCanEndInt: T {if(clefIsTreble) last_int_value=-2; else last_int_value=10; clefIsTreble=!clefIsTreble;} MaybeInteger MaybeT {
-  switch(last_int_value) {
+CommandCanEndInt: T {if(clef==10) last_int_value=-2; else last_int_value=10; } MaybeInteger MaybeT {
+  clef = last_int_value;
+  switch(clef) {
     case 10: puts("\\clef treble"); break;
     case 17: puts("\\clef \"G^8\""); break;
     case 4: puts("\\clef alto"); break;
@@ -225,12 +226,12 @@ CommandCanEndInt: T {if(clefIsTreble) last_int_value=-2; else last_int_value=10;
     case -2: puts("\\clef bass"); break;
     case 5: puts("\\clef \"F^8\""); break;
     case -99: puts("\\clef percussion"); break;
-    default: printf("%%{ TODO clef %d %%} ",last_int_value);
-  } // TODO clef carries through to the next part also, if next part doesn't change it; TODO if clef is set at the very end of a part, move it to the next part
+    default: printf("%%{ TODO clef %d %%} ",clef);
+  } // TODO if clef is set at the very end of a part, move it to the next part only
 };
 MaybeT: | T; /* (if present, omit key signature. ignored for now) */
 
-CommandCanEndInt: '$' C Integer {tempoBPM=last_int_value; last_int_value=4; wasDot=0;} CommaIgnore MaybeDot {printf("\\tempo %d%s = %d ",last_int_value,wasDot?".":"",tempoBPM);} PlusIgnore; // TODO if ends with a dot, this is a Command not a CommandCanEndInt
+CommandEndIntOrSetupCommand: '$' C Integer {tempoBPM=last_int_value; last_int_value=4; wasDot=0;} CommaIgnore MaybeDot {printf("\\tempo %d%s = %d ",last_int_value,wasDot?".":"",tempoBPM);} PlusIgnore; // TODO if ends with a dot, this is a Command not a CommandCanEndInt
 
 CommandCanEndInt: '$' P Integer MaybeDotT MaybePlusT {
   const char* transposType=NULL;
@@ -258,7 +259,7 @@ CommandNoIntAtEnd: '^' {bow="\\upbow ";} MaybeCaret {mystrcat(volBuf,bow);};
 CommandNoIntAtEnd: '$' R { rests_are_skips = !rests_are_skips; };
 CommandNoIntOrSetupCommand: '$' '#' {puts(" %{ TODO toggle rests-group-to-multibar %} ");};
 BarSetupCommand: '$' '|' {puts("\\bar \"||\"");} ; /* TODO or "|." if at end of piece */
-CommandCanEndInt: U Integer { /* bar numbering parameters (TODO capital U means box around them; height param 0 turns numbering off) */
+CommandEndIntOrSetupCommand: U Integer { /* bar numbering parameters (TODO capital U means box around them; height param 0 turns numbering off) */
   if(last_int_value>0) {
     printf("\\override Score.BarNumber #'break-visibility = #end-of-line-invisible\n\\set Score.barNumberVisibility = #(every-nth-bar-number-visible %d)\n",last_int_value);
     overridden_lilypond_bar_numbering = 1;
@@ -272,7 +273,18 @@ MaybeDot: | '.' {wasDot=1;};
 BarSetupCommand: PartSelect;
 CommandCanEndInt: OpenPhrase;
 PartSelect: P Integer {partOK=(last_int_value!=1);} CommaIgnore {
-  if (partOK) { close_part(); printf("part%c={ \\setup ",nextPartLetter++); }
+  if (partOK) { close_part(); printf("part%c={ \\setup ",nextPartLetter++);
+    switch(clef) {
+    case 10: break; // treble default
+    case 17: puts("\\clef \"G^8\""); break;
+    case 4: puts("\\clef alto"); break;
+    case 2: puts("\\clef tenor"); break;
+    case -2: puts("\\clef bass"); break;
+    case 5: puts("\\clef \"F^8\""); break;
+    case -99: puts("\\clef percussion"); break;
+    default: printf("%%{ TODO clef %d %%} ",clef);
+  }
+ }
   lilyCurLen=0;
   /* TODO if some things are set BEFORE the part command e.g. instrument, clef, these should be moved to after it */
 };
