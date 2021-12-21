@@ -1,7 +1,7 @@
 
 /*
    Manuscript Writer to Lilypond converter
-   Version 1.167, (c) 2010-13,2015-2016,2019,2021 Silas S. Brown
+   Version 1.17, (c) 2010-13,2015-2016,2019,2021 Silas S. Brown
    
    This program uses btyacc (Backtracking YACC)
    To set up:
@@ -76,6 +76,7 @@ although some early ones are missing.
   int suppressNextBarline=0;
   int last_int_value, needPling=0;
   int partOK; int clef=10;
+  int shortScore=0;
   int transposition_to_be_played=0, transposition_level=0;
   int in_phrase=0; // if nested phrasing, inner could be tie (TODO or outer could be phrasemarks rather than slurs)
   char nextPartLetter='A', markupPos;
@@ -176,7 +177,7 @@ CommandNoIntOrSetupCommand: '$' X LineIgnore '\n' /* titles etc - TODO */
   /* TODO '$' V ignore all incl newline up to but not including next $ (lyrics or composers' note) */
   | '$' U LineIgnore '\n' /* include file */
   | '$' '$' CharIgnore /* conditional compilation (A-Z toggles, a-z..a-z ignores if unset; 1 and 2=is/isn't first part) */ | '$' K CharIgnore /* conditional vars input from keyb (Y or N) */
-  | '$' '-' /* short score */;
+  | '$' '-' { shortScore = 1; };
 CommandEndIntOrSetupCommand:
     '$' D Unsigned ',' InstDefChars /* instrument definition */
   | '$' O Integer CommaIgnore /* 8va params */
@@ -258,7 +259,7 @@ CommandCanEndInt: Q {last_int_value=1;} MaybeInteger {printf(" %%{ TODO bracket 
 CommandNoIntAtEnd: '^' {bow="\\upbow ";} MaybeCaret {mystrcat(volBuf,bow);};
 CommandNoIntAtEnd: '$' R { rests_are_skips = !rests_are_skips; };
 CommandNoIntOrSetupCommand: '$' '#' {puts(" %{ TODO toggle rests-group-to-multibar %} ");};
-BarSetupCommand: '$' '|' {puts("\\bar \"||\"");} ; /* TODO or "|." if at end of piece */
+BarSetupCommand: '$' '|' {if(!suppressNextBarline)puts("\\bar \"||\"");} ; /* TODO or "|." if at end of piece */
 CommandEndIntOrSetupCommand: U Integer { /* bar numbering parameters (TODO capital U means box around them; height param 0 turns numbering off) */
   if(last_int_value>0) {
     printf("\\override Score.BarNumber #'break-visibility = #end-of-line-invisible\n\\set Score.barNumberVisibility = #(every-nth-bar-number-visible %d)\n",last_int_value);
@@ -274,6 +275,7 @@ BarSetupCommand: PartSelect;
 CommandCanEndInt: OpenPhrase;
 PartSelect: P Integer {partOK=(last_int_value!=1);} CommaIgnore {
   if (partOK) { close_part(); printf("part%c={ \\setup ",nextPartLetter++);
+    int i; for(i=0;i<7;i++) keysigAccidentals[i]=barAccidentals[i]="";
     switch(clef) {
     case 10: break; // treble default
     case 17: puts("\\clef \"G^8\""); break;
@@ -550,9 +552,12 @@ int main() {
   } else {
     puts("\\bookpart{ %{ TODO add \\header{} block for the score %}");
     puts("\\score { <<");
-    char i; for(i='A'; i<nextPartLetter; i++) {
+    char i='A';
+    if(shortScore)
+      for(; i+1<nextPartLetter; i+=2)
+        printf("\\new Staff << \\context Voice = Part%c%c { << \\part%c \\\\ \\part%c >> } >>\n",i,i+1,i,i+1);
+    for(; i<nextPartLetter; i++)
       printf("\\new Staff << \\context Voice = Part%c { \\part%c } >>\n",i,i);
-    }
     if(hadRepeats) {
       puts(">> \\layout{} } \\score { \\unfoldRepeats { <<");
       for(i='A'; i<nextPartLetter; i++) {
@@ -560,7 +565,7 @@ int main() {
       }
       puts(">> } \\midi{} }");
     } else puts(">> \\layout{} \\midi{} }");
-    if(nextPartLetter=='B') puts("}");
+    if(nextPartLetter=='B' || shortScore) puts("}");
     else {
       puts("} %{ end of score (delete from this point if you don't also want a set of parts)\n TODO \\headers for parts can contain instrument=..., but\n if they do then you might want to put the parts in separate .ly files instead of using bookpart,\n because Lilypond 2.12 puts the instrument header twice on the 1st page of a bookpart if it's not the first bookpart.\n For short pieces it's better to just set staff.instrumentName %}\n");
       for(i='A'; i<nextPartLetter; i++) {
