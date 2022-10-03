@@ -53,7 +53,7 @@ kept on GitHub at https://github.com/ssb22/mwr2ly
 and on GitLab at https://gitlab.com/ssb22/mwr2ly
 and on BitBucket https://bitbucket.org/ssb22/mwr2ly
 and at https://gitlab.developers.cam.ac.uk/ssb22/mwr2ly
-and in China: git clone https://gitee.com/ssb22/mwr2ly
+and in China: https://gitee.com/ssb22/mwr2ly
 although some early ones are missing.
 
 */
