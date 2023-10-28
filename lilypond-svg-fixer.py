@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # (should work in either Python 2 or Python 3)
 
-# Lilypond SVG Fixer v1.31
-# (c) 2019-2021 Silas S. Brown
+# Lilypond SVG Fixer v1.32
+# (c) 2019-2021,2023 Silas S. Brown
 # License: Apache 2 (see below)
 
 # Usage: python lilypond-svg-fixer.py < in.svg > out.svg
@@ -53,8 +53,8 @@ def filter(line):
         if line.rstrip().endswith("</tspan>") and ' ' in line: line = line.replace(' ',S(0xa0))
         return line
     if "scale(0.1)" in line: return line # we've been here before?
-    assert line.startswith('<text transform="translate'), "is this really a Lilypond-generated SVG?"
-    line = line.replace('" ',' scale(0.1)" ',1)
+    if line.startswith('<text transform="translate'): line = line.replace('" ',' scale(0.1)" ',1)
+    else: line=line.replace("<text ",'<text transform="scale(0.1)" ') # Lilypond 2.24 tag line
     line = re.sub(r'font-size="([^"]*)"',lambda m:'font-size="'+str(10*float(m.group(1)))+'"',line)
     return line
 
