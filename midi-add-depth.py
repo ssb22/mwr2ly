@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # (should work in either Python 2 or Python 3)
 
-# Add depth to MIDI file v1.2, Silas S. Brown.
+# Add depth to MIDI file v1.21, Silas S. Brown.
 # Used some code from an old version of
 # Python Midi Package by Max M.
 
@@ -473,7 +473,7 @@ class EventDispatcher:
     def continuous_controllers(self, channel, controller, value):
         stream = self.outstream
         stream.continuous_controller(channel, controller, value)
-    def system_commons(self, common_type, common_data):
+    def system_common(self, common_type, common_data):
         stream = self.outstream
         if common_type == MTC:
             data = readBew(common_data)
@@ -590,7 +590,7 @@ class MidiFileParser:
                     SONG_POSITION_POINTER:2,
                     SONG_SELECT:1,
                 }
-                data_size = data_sizes.get(hi_nible, 0)
+                data_size = data_sizes.get(status, 0)
                 common_data = raw_in.nextSlice(data_size)
                 common_type = lo_nible
                 dispatch.system_common(common_type, common_data)
