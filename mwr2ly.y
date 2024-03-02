@@ -1,7 +1,7 @@
 
 /*
    Manuscript Writer to Lilypond converter
-   Version 1.17, (c) 2010-13,2015-2016,2019,2021 Silas S. Brown
+   Version 1.18, (c) 2010-13,2015-'16,'19,'21,'24 Silas S. Brown
    
    This program uses btyacc (Backtracking YACC)
    To set up:
@@ -543,7 +543,7 @@ int yyerror (const char* s) {
 }
 
 int main() {
-  puts("\\version \"2.12.2\"\n#(set-global-staff-size 20) % (TODO adjust as needed: 25.2 is larger, 17.82 or 15.87 is smaller)\nsetup={\\override Staff.TimeSignature #'style = #'numbered\n\\override Score.Hairpin #'after-line-breaking = ##t\n#(set-accidental-style 'modern-cautionary) % not MWR behaviour but a nice addition\n}partA={ \\setup "); nextPartLetter++; // (did leave setup block open, so bar-numbering etc goes into it if part is not yet selected, but that's not good: P1 is optional, so need to begin part 1 anyway.  will have to sort out bar numbering anomalies by hand.)
+  puts("\\version \"2.12.2\"\n#(set-global-staff-size 20) % (TODO adjust as needed: 25.2 is larger, 17.82 or 15.87 is smaller)\nsetup={\\override Staff.TimeSignature #'style = #'numbered\n\\override Score.Hairpin #'after-line-breaking = ##t\n#(set-accidental-style 'modern-cautionary) % not MWR behaviour but a nice addition\n\\set Score.skipBars = ##t % ditto\n}partA={ \\setup "); nextPartLetter++; // (did leave setup block open, so bar-numbering etc goes into it if part is not yet selected, but that's not good: P1 is optional, so need to begin part 1 anyway.  will have to sort out bar numbering anomalies by hand.)
   // (layout-set-staff-size for different size score/parts doesn't always work properly)
   yyparse();
   close_part();
