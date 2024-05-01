@@ -1,7 +1,7 @@
 
 /*
    Manuscript Writer to Lilypond converter
-   Version 1.19, (c) 2010-13,2015-'16,'19,'21,'24 Silas S. Brown
+   Version 1.2, (c) 2010-13,2015-'16,'19,'21,'24 Silas S. Brown
    
    This program uses btyacc (Backtracking YACC)
    To set up:
@@ -97,8 +97,8 @@ although some early ones are missing.
   const char* lilypond_inst_names[]={"acoustic grand", "bright acoustic", "electric grand", "honky-tonk", "electric piano 1", "electric piano 2", "harpsichord", "clav", "celesta", "glockenspiel", "music box", "vibraphone", "marimba", "xylophone", "tubular bells", "dulcimer", "drawbar organ", "percussive organ", "rock organ", "church organ", "reed organ", "accordion", "harmonica", "tango accordion", "acoustic guitar (nylon)", "acoustic guitar (steel)", "electric guitar (jazz)", "electric guitar (clean)", "electric guitar (muted)", "overdriven guitar", "distortion guitar", "guitar harmonics", "acoustic bass", "electric bass (finger)", "electric bass (pick)", "fretless bass", "slap bass 1", "slap bass 2", "synth bass 1", "synth bass 2", "violin", "viola", "cello", "contrabass", "tremolo strings", "pizzicato strings", "orchestral strings", "timpani", "string ensemble 1", "string ensemble 2", "synthstrings 1", "synthstrings 2", "choir aahs", "voice oohs", "synth voice", "orchestra hit", "trumpet", "trombone", "tuba", "muted trumpet", "french horn", "brass section", "synthbrass 1", "synthbrass 2", "soprano sax", "alto sax", "tenor sax", "baritone sax", "oboe", "english horn", "bassoon", "clarinet", "piccolo", "flute", "recorder", "pan flute", "blown bottle",
   "shakuhachi" /* misspelled skakuhachi in Lilypond 2.0.1; that was fixed in Lilypond CVS 2003-10 and well before 2009's 2.12.2 we targetted, but versions of mwr2ly before 1.162 (2016-09) used the wrong spelling because I'd landed on an old version of the Lilypond manual when searching for its MIDI string table, oops */ ,
   "whistle", "ocarina", "lead 1 (square)", "lead 2 (sawtooth)", "lead 3 (calliope)", "lead 4 (chiff)", "lead 5 (charang)", "lead 6 (voice)", "lead 7 (fifths)", "lead 8 (bass+lead)", "pad 1 (new age)", "pad 2 (warm)", "pad 3 (polysynth)", "pad 4 (choir)", "pad 5 (bowed)", "pad 6 (metallic)", "pad 7 (halo)", "pad 8 (sweep)", "fx 1 (rain)", "fx 2 (soundtrack)", "fx 3 (crystal)", "fx 4 (atmosphere)", "fx 5 (brightness)", "fx 6 (goblins)", "fx 7 (echoes)", "fx 8 (sci-fi)", "sitar", "banjo", "shamisen", "koto", "kalimba", "bagpipe", "fiddle", "shanai", "tinkle bell", "agogo", "steel drums", "woodblock", "taiko drum", "melodic tom", "synth drum", "reverse cymbal", "guitar fret noise", "breath noise", "seashore", "bird tweet", "telephone ring", "helicopter", "applause", "gunshot"};
-  const char* negative_transpositions[]={"c","b,","bes,","a,","aes,","g,","ges,","f,","e,","ees,","d,","des,"};
-  const char* positive_transpositions[]={"c","cis","d","dis","e","f","fis","g","gis","a","ais","b"};
+  const char* positive_transpositions[]={"c'","b","bes","a","aes","g","ges","f","e","ees","d","des"}; // $P2 = concert Bb is printed as C = \transposition bes = \transpose bes c'
+  const char* negative_transpositions[]={"c'","cis'","d'","dis'","e'","f'","fis'","g'","gis'","a'","ais'","b'"};
 
   int fills_bar() {
     int numBeats;
@@ -246,7 +246,7 @@ CommandCanEndInt: '$' P Integer MaybeDotT MaybePlusT {
     if(transposition_to_be_played==2) {
       /* hack for nested transposition - omit closing */
     } else while(transposition_level){printf("} "); transposition_level--;}
-    printf(" \\transpose %s c { ",transposType); transposition_level++;
+    printf(" \\transpose %s c' { ",transposType); transposition_level++;
   } else printf(" %%{ TODO transposition %d semitones %%} ",last_int_value);
   transposition_to_be_played=0;};
 MaybeDotT:  | '.' {transposition_to_be_played=1;};
