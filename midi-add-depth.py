@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # (should work in either Python 2 or Python 3)
 
-# Add depth to MIDI file v1.21, Silas S. Brown.
+"Add depth to MIDI file v1.22, Silas S. Brown."
 # Used some code from an old version of
 # Python Midi Package by Max M.
 
@@ -28,7 +28,7 @@ import sys
 patch_map = list(range(128))
 if "--cdp-130" in sys.argv:
     # Patch changes for Casio CDP-130
-    patch_map = [0,1,2,3,4,3,5,5,6,6,6,6,6,6,6,6,9,9,9,8,9,9,9,9,5,5,5,5,5,5,5,5,0,0,0,0,0,0,0,0,7,7,7,7,7,5,6,0,7,7,7,7,7,7,7,7,9,9,9,9,9,9,9,9,9,9,9,9,7,7,7,7,7,7,7,7,7,7,7,7,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,5,5,5,5,6,9,7,7,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    patch_map = [0,1,2,3,4,3,5,5]+[6]*8+[9,9,9,8]+[9]*4+[5]*8+[0]*8+[7]*5+[5,6,0]+[7]*8+[9]*12+[7]*12+[9]*24+[5,5,5,5,6,9,7,7,6]+[0]*15
     # and on channel 10: available keynums are 33 and 34 (Metronome Click and Metronome Bell), 75, 78 and 80 (claves, mute cuica, mute triangle: these are sounded by the user interface); other keys are silent
     sys.argv.remove("--cdp-130")
 
@@ -92,14 +92,10 @@ def readVar(value):
         if not 0x80 & byte: break 
     return sum
 def varLen(value):
-    if value <= 127:
-        return 1
-    elif value <= 16383:
-        return 2
-    elif value <= 2097151:
-        return 3
-    else:
-        return 4
+    if value <= 127: return 1
+    elif value <= 16383: return 2
+    elif value <= 2097151: return 3
+    else: return 4
 def writeVar(value):
     sevens = to_n_bits(value, varLen(value))
     for i in range(len(sevens)-1):
@@ -112,8 +108,7 @@ def to_n_bits(value, length=1, nbits=7):
 def toBytes(value):
     return unpack('%sB' % len(value), value)
 def fromBytes(value):
-    if not value:
-        return B('')
+    if not value: return B('')
     return pack('%sB' % len(value), *value)
 class RawOutstreamFile:
     def __init__(self, outfile=None):
@@ -143,83 +138,12 @@ CONTINUOUS_CONTROLLER = 0xB0
 PATCH_CHANGE = 0xC0
 CHANNEL_PRESSURE = 0xD0
 PITCH_BEND = 0xE0
-BANK_SELECT = 0x00
-MODULATION_WHEEL = 0x01
-BREATH_CONTROLLER = 0x02
-FOOT_CONTROLLER = 0x04
-PORTAMENTO_TIME = 0x05
-DATA_ENTRY = 0x06
-CHANNEL_VOLUME = 0x07
-BALANCE = 0x08
-PAN = 0x0A
-EXPRESSION_CONTROLLER = 0x0B
-EFFECT_CONTROL_1 = 0x0C
-EFFECT_CONTROL_2 = 0x0D
-GEN_PURPOSE_CONTROLLER_1 = 0x10
-GEN_PURPOSE_CONTROLLER_2 = 0x11
-GEN_PURPOSE_CONTROLLER_3 = 0x12
-GEN_PURPOSE_CONTROLLER_4 = 0x13
-BANK_SELECT = 0x20
-MODULATION_WHEEL = 0x21
-BREATH_CONTROLLER = 0x22
-FOOT_CONTROLLER = 0x24
-PORTAMENTO_TIME = 0x25
-DATA_ENTRY = 0x26
-CHANNEL_VOLUME = 0x27
-BALANCE = 0x28
-PAN = 0x2A
-EXPRESSION_CONTROLLER = 0x2B
-EFFECT_CONTROL_1 = 0x2C
-EFFECT_CONTROL_2 = 0x2D
-GENERAL_PURPOSE_CONTROLLER_1 = 0x30
-GENERAL_PURPOSE_CONTROLLER_2 = 0x31
-GENERAL_PURPOSE_CONTROLLER_3 = 0x32
-GENERAL_PURPOSE_CONTROLLER_4 = 0x33
-SUSTAIN_ONOFF = 0x40
-PORTAMENTO_ONOFF = 0x41
-SOSTENUTO_ONOFF = 0x42
-SOFT_PEDAL_ONOFF = 0x43
-LEGATO_ONOFF = 0x44
-HOLD_2_ONOFF = 0x45
-SOUND_CONTROLLER_1 = 0x46                  
-SOUND_CONTROLLER_2 = 0x47                  
-SOUND_CONTROLLER_3 = 0x48                  
-SOUND_CONTROLLER_4 = 0x49                  
-SOUND_CONTROLLER_5 = 0x4A                  
-SOUND_CONTROLLER_7 = 0x4C                  
-SOUND_CONTROLLER_8 = 0x4D                  
-SOUND_CONTROLLER_9 = 0x4E                  
-SOUND_CONTROLLER_10 = 0x4F                 
-GENERAL_PURPOSE_CONTROLLER_5 = 0x50
-GENERAL_PURPOSE_CONTROLLER_6 = 0x51
-GENERAL_PURPOSE_CONTROLLER_7 = 0x52
-GENERAL_PURPOSE_CONTROLLER_8 = 0x53
-PORTAMENTO_CONTROL = 0x54                  
-EFFECTS_1 = 0x5B                           
-EFFECTS_2 = 0x5C                           
-EFFECTS_3 = 0x5D                           
-EFFECTS_4 = 0x5E                           
-EFFECTS_5 = 0x5F                           
-DATA_INCREMENT = 0x60                      
-DATA_DECREMENT = 0x61                      
-NON_REGISTERED_PARAMETER_NUMBER = 0x62     
-NON_REGISTERED_PARAMETER_NUMBER = 0x63     
-REGISTERED_PARAMETER_NUMBER = 0x64         
-REGISTERED_PARAMETER_NUMBER = 0x65         
-ALL_SOUND_OFF = 0x78
-RESET_ALL_CONTROLLERS = 0x79
-LOCAL_CONTROL_ONOFF = 0x7A
-ALL_NOTES_OFF = 0x7B
-OMNI_MODE_OFF = 0x7C          
-OMNI_MODE_ON = 0x7D           
-MONO_MODE_ON = 0x7E           
-POLY_MODE_ON = 0x7F           
 SYSTEM_EXCLUSIVE = 0xF0
 MTC = 0xF1 
 SONG_POSITION_POINTER = 0xF2
 SONG_SELECT = 0xF3
 TUNING_REQUEST = 0xF6
-END_OFF_EXCLUSIVE = 0xF7 
+END_OF_EXCLUSIVE = 0xF7 
 SEQUENCE_NUMBER = 0x00      
 TEXT            = 0x01      
 COPYRIGHT       = 0x02      
@@ -240,15 +164,8 @@ KEY_SIGNATURE   = 0x59
 SPECIFIC        = 0x7F      
 FILE_HEADER     = B('MThd')
 TRACK_HEADER    = B('MTrk')
-TIMING_CLOCK   = 0xF8
-SONG_START     = 0xFA
-SONG_CONTINUE  = 0xFB
-SONG_STOP      = 0xFC
-ACTIVE_SENSING = 0xFE
-SYSTEM_RESET   = 0xFF
 META_EVENT     = 0xFF
-def is_status(byte):
-    return (byte & 0x80) == 0x80 
+def is_status(byte): return (byte & 0x80) == 0x80 
 class MidiOutFile:
     def update_time(self, new_time=0, relative=1):
         if relative:
@@ -312,7 +229,7 @@ class MidiOutFile:
         self.event_slice(slc)
     def sysex_event(self, data):
         sysex_len = writeVar(len(data)+1)
-        self.event_slice(chr(SYSTEM_EXCLUSIVE) + sysex_len + data + chr(END_OFF_EXCLUSIVE))
+        self.event_slice(chr(SYSTEM_EXCLUSIVE) + sysex_len + data + chr(END_OF_EXCLUSIVE))
     def midi_time_code(self, msg_type, values):
         value = (msg_type<<4) + values
         self.event_slice(fromBytes([MIDI_TIME_CODE, value]))
@@ -581,7 +498,7 @@ class MidiFileParser:
             elif status == SYSTEM_EXCLUSIVE:
                 sysex_length = raw_in.readVarLen()
                 sysex_data = raw_in.nextSlice(sysex_length-1)
-                if raw_in.readBew(move_cursor=0) == END_OFF_EXCLUSIVE:
+                if raw_in.readBew(move_cursor=0) == END_OF_EXCLUSIVE:
                     eo_sysex = raw_in.readBew()
                 dispatch.sysex_event(sysex_data)
             elif hi_nible == 0xF0: 
@@ -708,6 +625,7 @@ class MidiToMidi:
         self.midi.sequencer_specific(data)
 
 if __name__ == '__main__':
+    if '--version' in sys.argv: print(__doc__),sys.exit()
     if len(sys.argv)<3:
         sys.stderr.write("Syntax: midi-add-depth [--cdp-130] infile|- outfile|-\n")
         sys.exit(1)
