@@ -1,7 +1,7 @@
 
 /*
    Manuscript Writer to Lilypond converter
-   Version 1.2, (c) 2010-13,2015-'16,'19,'21,'24 Silas S. Brown
+   Version 1.3, (c) 2010-13,2015-'16,'19,'21,'24 Silas S. Brown
    
    This program uses btyacc (Backtracking YACC)
    To set up:
@@ -73,6 +73,9 @@ although some early ones are missing.
 #include <string.h>
 #include <stdlib.h>
   int rests_are_skips = 0;
+  int num_fullbar_rests = 0;
+  char fullbar_rest_buf[9]; // should need 5 (R64.) as more complex cases not handled
+  // print with " |\n"
   int suppressNextBarline=0;
   int last_int_value, needPling=0;
   int partOK; int clef=10;
@@ -83,6 +86,7 @@ although some early ones are missing.
   int curLen=4,curOctave=2,lilyCurLen=0,lilyCurDots=0;
   int timeTop=4,timeBottom=4,inFirstTimeBar=0;
   int textBufPtr=0; char textBuf[200];
+  void flush_fullbar_rests() { if(num_fullbar_rests) { printf("%s%s%d |\n",fullbar_rest_buf,num_fullbar_rests>1?"*":"",num_fullbar_rests); num_fullbar_rests=0;} }
   void bufChar(int c) { if(textBufPtr<sizeof(textBuf)) textBuf[textBufPtr++]=c; }
   int need_to_open_phrase=0,inChord=0,hadRepeats=0;
   char *hasTenuto=NULL;
@@ -102,7 +106,7 @@ although some early ones are missing.
 
   int fills_bar() {
     int numBeats;
-    if(numDots>1 || timeBottom%curLen) return 0; // don't bother with complex cases like that
+    if(numDots>1 || timeBottom%curLen || tuplet_stop_after) return 0; // don't bother with complex cases like that
     numBeats = timeBottom/curLen;
     if(numDots) {
       if(numBeats%2) return 0;
@@ -111,6 +115,7 @@ although some early ones are missing.
     return numBeats==timeTop;
   }
   void close_part() {
+    flush_fullbar_rests();
     while(transposition_level){printf("} "); transposition_level--;} // TODO some MWR files might propagate it into the next part
     if(!suppressNextBarline) printf("\\bar \"|.\" ");
     printf("}\n");
@@ -133,28 +138,28 @@ input: /* empty */ | Bar | Bar Barline [YYVALID;] {if(inFirstTimeBar==2) inFirst
 Bar: BarSetup BarInner {suppressNextBarline=0;} BarEnd;
 BarSetup: /* empty */ | BarSetup BarSetupCommand;
 BarEnd: /* empty */ | BarEnd BarEndCommand;
-/* if-btyacc */ BarInner: BarVoice | {printf("<< { "); lilyCurLen=0;} BarVoice ',' {printf(" } \\\\ { ");lilyCurLen=0;} BarVoice {printf(" } >> ");lilyCurLen=0;}; // TODO make sure time signature etc does not occur within a divisi structure (but careful if splitting some things to PreBarCommands, need to include len/8ve state changes and can overload the backtracker)
+/* if-btyacc */ BarInner: BarVoice | {flush_fullbar_rests();printf("<< { "); lilyCurLen=0;} BarVoice ',' {flush_fullbar_rests();printf(" } \\\\ { ");lilyCurLen=0;} BarVoice {flush_fullbar_rests();printf(" } >> ");lilyCurLen=0;}; // TODO make sure time signature etc does not occur within a divisi structure (but careful if splitting some things to PreBarCommands, need to include len/8ve state changes and can overload the backtracker)
 //if-bison:  BarInner: BarVoice MaybeVoice2;
-//if-bison:  MaybeVoice2: | ',' {printf(" %%{ TODO start divisi part %%} ");} BarVoice {printf(" %%{ TODO end divisi part %%} ");};
+//if-bison:  MaybeVoice2: | ',' {flush_fullbar_rests();printf(" %%{ TODO start divisi part %%} ");} BarVoice {flush_fullbar_rests();printf(" %%{ TODO end divisi part %%} ");};
 
 BarVoice: CommandCanEndInt | CommandCanEndInt BarVoice;
 BarVoice: CommandNoIntAtEnd TupletPoint;
 TupletPoint: MaybeTuplet /* at end of bar, sets for next */ | MaybeTuplet BarVoice;
 
-CommandNoIntAtEnd: EmbeddedLilypond;
+CommandNoIntAtEnd: {flush_fullbar_rests();} EmbeddedLilypond;
 EmbeddedLilypond: '\\' {putchar('\\');} LyIgnorePrint EmbedLilypondEnd;
 EmbedLilypondEnd: '{' {putchar('{'); hadRepeats=1;/*maybe it was a repeat command*/} | '\n' {putchar('\n');};
 EmbeddedLilypond: '}' {putchar('}');};
 EmbeddedLilypond: '{' LyIgnorePrintAll '\n';
 
-BarSetupCommand: '$' '1' {puts(" } \\alternative { { "); inFirstTimeBar=1;};
+BarSetupCommand: '$' '1' {flush_fullbar_rests();puts(" } \\alternative { { "); inFirstTimeBar=1;};
 CommandNoIntAtEnd: CommandNoIntOrSetupCommand;
 CommandCanEndInt: CommandEndIntOrSetupCommand;
 CommandNoIntOrSetupCommand: Ignore;
 CommandCanEndInt: Volume; /* because could get e.g. V>3; we put MaybeTuplet in it ourselves for the versions that are compatible with tuplets */
 /* if-btyacc */ BarSetupCommand: CommandNoIntOrSetupCommand | CommandEndIntOrSetupCommand; BarEndCommand: CommandNoIntOrSetupCommand | CommandEndIntOrSetupCommand; /* TODO: bison equivalent? */
-BarSetupCommand: '[' {puts("\\repeat volta 2 {");hadRepeats=1;};
-BarEndCommand: ']' {if(inFirstTimeBar){inFirstTimeBar=2;puts("} {");} else puts("}"); suppressNextBarline=1;};
+BarSetupCommand: '[' {flush_fullbar_rests();puts("\\repeat volta 2 {");hadRepeats=1;};
+BarEndCommand: ']' {flush_fullbar_rests();if(inFirstTimeBar){inFirstTimeBar=2;puts("} {");} else puts("}"); suppressNextBarline=1;};
 CommandNoIntOrSetupCommand: Comment
   | '"' LineIgnore '\n' /* shell commands etc */
   | '~' /* orientation */;
@@ -208,7 +213,7 @@ MidiDump: /* empty */ | MidiDump HexDigit HexDigit | MidiDump X | MidiDump Y;
 HexDigit: '0'|'1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9'|A|B|C|D|E|F;
 MaybeSlash: | '/' MaybeTuplet;
 MaybeInteger: Integer | ;
-CommandCanEndInt: '$' F MaybeInteger {puts(" %{ TODO notehead type %} ");};
+CommandCanEndInt: '$' F MaybeInteger {flush_fullbar_rests();puts(" %{ TODO notehead type %} ");};
 CommandNoIntOrSetupCommand: X /* TODO if capital, box around the text */
   Integer /* font no. */ TextCommand;
 TextCommand: ',' /* (TODO actually any non-numeric character, and it knows it's this version because there's already a font loaded, but comma by convention) */
@@ -218,7 +223,7 @@ TextCommand: ',' /* (TODO actually any non-numeric character, and it knows it's 
 TextCommand: NotCommaDigitIgnore LineIgnore '\n' /* font */;
 
 CommandCanEndInt: T {if(clef==10) last_int_value=-2; else last_int_value=10; } MaybeInteger MaybeT {
-  clef = last_int_value;
+  clef = last_int_value; flush_fullbar_rests();
   switch(clef) {
     case 10: puts("\\clef treble"); break;
     case 17: puts("\\clef \"G^8\""); break;
@@ -232,7 +237,7 @@ CommandCanEndInt: T {if(clef==10) last_int_value=-2; else last_int_value=10; } M
 };
 MaybeT: | T; /* (if present, omit key signature. ignored for now) */
 
-CommandEndIntOrSetupCommand: '$' C Integer {tempoBPM=last_int_value; last_int_value=4; wasDot=0;} CommaIgnore MaybeDot {printf("\\tempo %d%s = %d ",last_int_value,wasDot?".":"",tempoBPM);} PlusIgnore; // TODO if ends with a dot, this is a Command not a CommandCanEndInt
+CommandEndIntOrSetupCommand: '$' C Integer {tempoBPM=last_int_value; last_int_value=4; wasDot=0;} CommaIgnore MaybeDot {flush_fullbar_rests();printf("\\tempo %d%s = %d ",last_int_value,wasDot?".":"",tempoBPM);} PlusIgnore; // TODO if ends with a dot, this is a Command not a CommandCanEndInt
 
 CommandCanEndInt: '$' P Integer MaybeDotT MaybePlusT {
   const char* transposType=NULL;
@@ -240,7 +245,7 @@ CommandCanEndInt: '$' P Integer MaybeDotT MaybePlusT {
     transposType = negative_transpositions[-last_int_value];
   } else if(last_int_value<12) {
     transposType = positive_transpositions[last_int_value];
-  }
+  } flush_fullbar_rests();
   if(transposType) {
     if(!transposition_to_be_played) printf(" \\transposition %s",transposType);
     if(transposition_to_be_played==2) {
@@ -252,20 +257,22 @@ CommandCanEndInt: '$' P Integer MaybeDotT MaybePlusT {
 MaybeDotT:  | '.' {transposition_to_be_played=1;};
 MaybePlusT: | '+' {transposition_to_be_played=2;};
 
-CommandNoIntOrSetupCommand: '$' '*' {puts(" %{ TODO toggle cue mode %} ");};
+CommandNoIntOrSetupCommand: '$' '*' {flush_fullbar_rests();puts(" %{ TODO toggle cue mode %} ");};
 CommandNoIntAtEnd: '$' '/' BarlineType;
 BarlineType: '0' {puts("%{ TODO invisible barlines %}");} | '/' {puts("%{ TODO normal barlines %}");} | '-' {puts("%{ TODO dotted barlines %}");};
 CommandCanEndInt: Q {last_int_value=1;} MaybeInteger {printf(" %%{ TODO bracket the last %d staves %%} ",last_int_value);};
 CommandNoIntAtEnd: '^' {bow="\\upbow ";} MaybeCaret {mystrcat(volBuf,bow);};
 CommandNoIntAtEnd: '$' R { rests_are_skips = !rests_are_skips; };
 CommandNoIntOrSetupCommand: '$' '#' /* toggle rests-group-to-multibar: ignore as we have Score.skipBars set anyway in Lilypond */;
-BarSetupCommand: '$' '|' {if(!suppressNextBarline)puts("\\bar \"||\"");} ;
-MaybeDoubleBarAtEnd: | '$' '|' {if(!suppressNextBarline)puts("\\bar \"|.\"");} ;
+BarSetupCommand: '$' '|' {flush_fullbar_rests();if(!suppressNextBarline)puts("\\bar \"||\"");} ;
+MaybeDoubleBarAtEnd: | '$' '|' {flush_fullbar_rests();if(!suppressNextBarline)puts("\\bar \"|.\"");} ;
 CommandEndIntOrSetupCommand: U Integer { /* bar numbering parameters (TODO capital U means box around them; height param 0 turns numbering off) */
   if(last_int_value>0) {
+    flush_fullbar_rests();
     printf("\\override Score.BarNumber #'break-visibility = #end-of-line-invisible\n\\set Score.barNumberVisibility = #(every-nth-bar-number-visible %d)\n",last_int_value);
     overridden_lilypond_bar_numbering = 1;
   } else if(overridden_lilypond_bar_numbering) {
+    flush_fullbar_rests();
     puts("% TODO restore Lilypond's default bar numbering (before the clef)");
     overridden_lilypond_bar_numbering = 0;
   }
@@ -304,14 +311,14 @@ OctaveUp:   '>' {curOctave++;};
 /* (not doing barline ignore at lex level because some commands eg. text need CRs) */
 SpaceTab: ' ' | '\t';
 Barline: SpaceTab Barline2 {
-  puts("|");
+  if(!num_fullbar_rests) puts("|");
   memcpy(barAccidentals,keysigAccidentals,sizeof(char*)*7);
 } MaybeInteger; /* (if integer, it's 8va params for next bar, ignored (TODO?)) */
 Barline2: /* empty */ | Barline2 SpaceTab | Barline2 Ignore SpaceTab;
 MaybeClosePhrase: | ClosePhrase; // needs to be before any tuplet }, not after
 CommandNoIntAtEnd: TimeTaker /* (well, CAN be int at end if it's decorated with a fermata, but we prefer shift to reduce there) */ MaybeClosePhrase {
   if(textBufPtr) {
-    int i;
+    int i; flush_fullbar_rests();
     printf("%c\\markup{",markupPos);
     for(i=0; i<textBufPtr; i++) putchar(textBuf[i]); // TODO escape }s ?
     textBufPtr=0;
@@ -329,7 +336,7 @@ CommandNoIntAtEnd: TimeTaker /* (well, CAN be int at end if it's decorated with 
     }
   }
 };
-TimeTaker: Chord {
+TimeTaker: {flush_fullbar_rests();} Chord {
   if(curLen!=lilyCurLen || numDots!=lilyCurDots) { printf("%d",curLen); lilyCurLen=curLen; lilyCurDots=0; }
   if(numDots!=lilyCurDots) { int i; for(i=0; i<numDots; i++) putchar('.'); lilyCurDots=numDots; }
   putchar(' ');
@@ -359,12 +366,20 @@ Note: NoteLetter {last_accidental=NULL; numDots=0;} NoteSuffices {
   }
 };
 Rest: R {numDots=0;} RestSuffices {
-  if(rests_are_skips) putchar('s');
-  else if(fills_bar()) putchar('R');
-  else putchar('r');
+  if(rests_are_skips) {
+    flush_fullbar_rests();
+    putchar('s');
+  } else if(fills_bar()) {
+    if(!num_fullbar_rests++) sprintf(fullbar_rest_buf,"R%d%s",curLen,numDots?".":""); // always re-specify length on full-bar rest, in case automatically or manually changed to a multirest
+    lilyCurLen=lilyCurDots=0; // always re-specify length on next note too, in case automatically or manually changed to a multirest
+  } else {
+    flush_fullbar_rests();
+    putchar('r');
+  }
+  if(!num_fullbar_rests) {
   if(curLen!=lilyCurLen || numDots!=lilyCurDots) { printf("%d",curLen); lilyCurLen=curLen; lilyCurDots=0; }
   if(numDots!=lilyCurDots) { int i; for(i=0; i<numDots; i++) putchar('.'); lilyCurDots=numDots; }
-  putchar(' ');
+  putchar(' '); }
 };
 NoteSuffices: /* empty */ | NoteSuffices NoteSuffix;
 NoteExtraSuffices: /* empty */ | NoteExtraSuffices NoteExtraSuffix;
@@ -423,8 +438,9 @@ Volstring: P {mystrcat(volBuf,"\\"); mystrcat(volBuf,"p");} VolstringMorePs;
 Volstring: F {mystrcat(volBuf,"\\"); mystrcat(volBuf,"f");} VolstringMoreFs;
 VolstringMorePs: | P {mystrcat(volBuf,"p");} VolstringMorePs;
 VolstringMoreFs: | F {mystrcat(volBuf,"f");} VolstringMoreFs;
-CommandCanEndInt: J UnsignedNonZero {timeTop=last_int_value;} ',' UnsignedNonZero {timeBottom=last_int_value; printf("\\time %d/%d ",timeTop,timeBottom);};
+CommandCanEndInt: J UnsignedNonZero {timeTop=last_int_value;} ',' UnsignedNonZero {timeBottom=last_int_value; flush_fullbar_rests(); printf("\\time %d/%d ",timeTop,timeBottom);};
 CommandNoIntAtEnd: K '0' /* single char not count as int at end */ MaybeAccidental {
+  flush_fullbar_rests();
   puts("\\key c \\major %{ TODO check it's in all the parts %} ");
   { int i; for(i=0;i<7;i++) keysigAccidentals[i]=barAccidentals[i]=""; }
 };
@@ -451,6 +467,7 @@ CommandNoIntAtEnd: K UnsignedNonZero KeyAccidental {
     }
   }
   memcpy(barAccidentals,keysigAccidentals,sizeof(char*)*7);
+  flush_fullbar_rests();
   printf("\\key %c%s \\major %%{ TODO check it's in all the parts %%} ",curKey+'a',curKeyExtra);
 };
 KeyAccidental: Sharp {last_accidental="is";};
@@ -508,7 +525,7 @@ DigitNonZero: '9' {last_int_value=last_int_value*10+9;};
 
 MaybeTuplet: | Tuplet;
 Tuplet: UnsignedNonZero {fitIn=last_int_value;} TupletBottomVal {
-  printf(" \\times %d/%d { ",last_int_value,fitIn);
+  flush_fullbar_rests(); printf(" \\times %d/%d { ",last_int_value,fitIn);
   tuplet_stop_after = fitIn*128/curLen;
 } MaybeEquals; /* TODO if '=' then don't print a tuplet bracket */
 MaybeEquals: | '=';
@@ -544,7 +561,7 @@ int yyerror (const char* s) {
 }
 
 int main() {
-  puts("\\version \"2.12.2\"\n#(set-global-staff-size 20) % (TODO adjust as needed: 25.2 is larger, 17.82 or 15.87 is smaller)\nsetup={\\override Staff.TimeSignature #'style = #'numbered\n\\override Score.Hairpin #'after-line-breaking = ##t\n#(set-accidental-style 'modern-cautionary) % not MWR behaviour but a nice addition\n\\set Score.skipBars = ##t % MWR needs $# to turn this on but we might as well have it by default\n}partA={ \\setup "); nextPartLetter++; // (did leave setup block open, so bar-numbering etc goes into it if part is not yet selected, but that's not good: P1 is optional, so need to begin part 1 anyway.  will have to sort out bar numbering anomalies by hand.)
+  puts("\\version \"2.12.2\"\n#(set-global-staff-size 20) % (TODO adjust as needed: 25.2 is larger, 17.82 or 15.87 is smaller)\nsetup={\\override Staff.TimeSignature #'style = #'numbered\n\\override Score.Hairpin #'after-line-breaking = ##t\n#(set-accidental-style 'modern-cautionary) % not MWR behaviour but a nice addition\n\\set Score.skipBars = ##t % MWR needs $# to turn this on but we might as well have it by default\n}\npartA={ \\setup "); nextPartLetter++; // (did leave setup block open, so bar-numbering etc goes into it if part is not yet selected, but that's not good: P1 is optional, so need to begin part 1 anyway.  will have to sort out bar numbering anomalies by hand.)
   // (layout-set-staff-size for different size score/parts doesn't always work properly)
   yyparse();
   close_part();
