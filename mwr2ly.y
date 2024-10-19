@@ -1,7 +1,7 @@
 
 /*
    Manuscript Writer to Lilypond converter
-   Version 1.3, (c) 2010-13,2015-'16,'19,'21,'24 Silas S. Brown
+   Version 1.31, (c) 2010-13,2015-'16,'19,'21,'24 Silas S. Brown
    
    This program uses btyacc (Backtracking YACC)
    To set up:
@@ -86,7 +86,7 @@ although some early ones are missing.
   int curLen=4,curOctave=2,lilyCurLen=0,lilyCurDots=0;
   int timeTop=4,timeBottom=4,inFirstTimeBar=0;
   int textBufPtr=0; char textBuf[200];
-  void flush_fullbar_rests() { if(num_fullbar_rests) { printf("%s%s%d |\n",fullbar_rest_buf,num_fullbar_rests>1?"*":"",num_fullbar_rests); num_fullbar_rests=0;} }
+  void flush_fullbar_rests() { if(num_fullbar_rests) { fputs(fullbar_rest_buf,stdout);if(num_fullbar_rests>1)printf("*%d",num_fullbar_rests);puts(" |");num_fullbar_rests=0;} }
   void bufChar(int c) { if(textBufPtr<sizeof(textBuf)) textBuf[textBufPtr++]=c; }
   int need_to_open_phrase=0,inChord=0,hadRepeats=0;
   char *hasTenuto=NULL;
