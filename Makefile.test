@@ -6,4 +6,5 @@ test:
 	bison mwr2ly2.y
 	gcc mwr2ly2.tab.c -o mwr2ly
 	echo "o2l4cdef gab>c @" | ./mwr2ly | grep "^g' a' b' c'' |" >/dev/null
+	echo "l1r r r" | ./mwr2ly | grep "R1[*]3" >/dev/null
 .PHONY: test
