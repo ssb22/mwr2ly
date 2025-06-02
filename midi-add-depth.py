@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # (should work in either Python 2 or Python 3)
 
-"Add depth to MIDI file v1.22, Silas S. Brown."
+"Add depth to MIDI file v1.23, Silas S. Brown."
 # Used some code from an old version of
 # Python Midi Package by Max M.
 
@@ -139,7 +139,7 @@ PATCH_CHANGE = 0xC0
 CHANNEL_PRESSURE = 0xD0
 PITCH_BEND = 0xE0
 SYSTEM_EXCLUSIVE = 0xF0
-MTC = 0xF1 
+MTC = 0xF1
 SONG_POSITION_POINTER = 0xF2
 SONG_SELECT = 0xF3
 TUNING_REQUEST = 0xF6
@@ -232,7 +232,7 @@ class MidiOutFile:
         self.event_slice(chr(SYSTEM_EXCLUSIVE) + sysex_len + data + chr(END_OF_EXCLUSIVE))
     def midi_time_code(self, msg_type, values):
         value = (msg_type<<4) + values
-        self.event_slice(fromBytes([MIDI_TIME_CODE, value]))
+        self.event_slice(fromBytes([MTC, value]))
     def song_position_pointer(self, value):
         lsb = (value & 0x7F)
         msb = (value >> 7) & 0x7F
@@ -271,7 +271,7 @@ class MidiOutFile:
         raw.writeSlice(track_data)
         raw.writeSlice(eot_slice)
     def sequence_number(self, value):
-        self.meta_slice(meta_type, writeBew(value, 2))
+        self.meta_slice(SEQUENCE_NUMBER, writeBew(value, 2))
     def text(self, text):
         self.meta_slice(TEXT, text)
     def copyright(self, text):
@@ -499,7 +499,7 @@ class MidiFileParser:
                 sysex_length = raw_in.readVarLen()
                 sysex_data = raw_in.nextSlice(sysex_length-1)
                 if raw_in.readBew(move_cursor=0) == END_OF_EXCLUSIVE:
-                    eo_sysex = raw_in.readBew()
+                    raw_in.readBew() # eo_sysex
                 dispatch.sysex_event(sysex_data)
             elif hi_nible == 0xF0: 
                 data_sizes = {
