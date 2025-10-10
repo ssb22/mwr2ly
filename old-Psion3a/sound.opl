@@ -1,0 +1,64 @@
+REM Errorexit 73 if any music on part 2 AND on 2nd line
+PROC main:
+	local ret%,sndHand%,s1$(40),s2$(40),s3$(40),s4$(40)
+	global dur%,s1stat%,notes%(40)
+	local d%,d$(1),handle%
+	LOADM "M_TUNE.OPO"
+	dur%=32
+	ret%=IOOPEN(sndHand%,"SND:",-1)
+	if ret%<0
+		raise ret%
+	else
+		while 1
+			dInit "Play tune"
+			dEdit s1$,"Part 1"
+			dEdit s3$,"Part 1"
+			dEdit s2$,"Part 2"
+			dEdit s4$,"Part 2"
+			dButtons "Append",290,"Play",13,"Keyboard",9
+			d%=dialog
+			if d%=13
+				playtune:(sndHand%,s1$,s2$):playtune:(sndHand%,s3$,s4$):IOWAITSTAT s1stat%
+			elseif d%=290
+				ret%=ioopen(handle%,"loc::m:\opl\snd_dat.opl",$0123)
+				if ret%<0
+					ret%=ioopen(handle%,"loc::m:\opl\snd_dat.opl",$0121)
+					if ret%<0:raise ret% :endif
+					lprt:("PROC Main:",handle%)
+					lprt:("	LOCAL sndHand%",handle%)
+					lprt:("	global dur%,s1stat%,notes%(40)",handle%)
+					lprt:("	dur%=32",handle%)
+					lprt:("	LOADM "+chr$(34)+"M_TUNE.OPO"+chr$(34),handle%)
+					lprt:("	IOOPEN(sndHand%,"+chr$(34)+"SND:"+chr$(34)+",-1)",handle%)
+					lprt:("	REM Have IOWAITSTAT s1Hand% or GET at end",handle%)
+				endif
+				outText:(handle%,s1$,s2$):outText:(handle%,s3$,s4$)
+				ioclose(handle%)
+			elseif d%=9
+				while 1
+					d$=get$
+					if d$=chr$(27):break :endif
+					notes%(1)=440*(2.0**((2.0+loc("q2w3er5t6y7ui9o0p-",d$))/12.0))
+					notes%(2)=16
+					d%=1
+					IOC(sndhand%,1,s1stat%,notes%(),d%)
+					IOW(sndHand%,2,notes%(),d%)
+				endwh
+			else :break :endif
+		endwh
+		ioclose(sndHand%)
+	endif 
+ENDP
+
+PROC outText:(handle%,a$,b$)
+	local s$(255)
+	s$="	playtune:(sndHand%,"+chr$(34)+a$+chr$(34)+","+chr$(34)+b$+chr$(34)+")"
+	lprt:(s$,handle%)
+ENDP
+
+PROC lprt:(x$,handle%)
+	local ret%,s$(255)
+	s$=x$
+	ret%=iowrite(handle%,addr(s$)+1,len(s$))
+	if ret% :raise ret% :endif
+ENDP

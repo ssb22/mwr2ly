@@ -1,0 +1,59 @@
+PROC Wrong:
+	PRINT "Libary module - do not run"
+	GET
+ENDP
+
+PROC playtune:(sndHand%,part1$,part2$)
+	GLOBAL max%
+	local notes1%(40),nb%(40),n1b%(40),nctr%
+	local len1%,len2%
+	max%=256:rem Normally 128
+	len1%=getFreq:(part1$)
+	len2%=1:while len2%<=len1%*2:notes1%(len2%)=notes%(len2%):len2%=len2%+1:endwh
+	len2%=getFreq:(part2$)
+	nctr%=1:WHILE nctr%<=40:n1b%(nctr%)=notes1%(nctr%):nb%(nctr%)=notes%(nctr%):nctr%=nctr%+1:ENDWH
+	IF s1stat% :IOWAITSTAT s1stat% :ENDIF
+	IOC(sndhand%,1,s1stat%,n1b%(),len1%)
+	IOC(sndHand%,2,max%,nb%(),len2%)
+ENDP
+
+PROC getFreq:(part$)
+	local loop%,len%,oct%,a$(1),b$(1),c$(1)
+	len%=0:oct%=0
+	loop%=1:while loop%<=len(part$)
+		a$=upper$(mid$(part$,loop%,1))
+		if loop%<len(part$):b$=upper$(mid$(part$,loop%+1,1)):else :b$="":endif
+		if loop%<len(part$)-1:c$=upper$(mid$(part$,loop%+2,1)):else :c$="":endif
+		if a$="C":len%=len%+1:doNote:(len%,oct%+3,b$,c$)
+		elseif a$="D":len%=len%+1:doNote:(len%,oct%+5,b$,c$)
+		elseif a$="E":len%=len%+1:doNote:(len%,oct%+7,b$,c$)
+		elseif a$="F":len%=len%+1:doNote:(len%,oct%+8,b$,c$)
+		elseif a$="G":len%=len%+1:doNote:(len%,oct%+10,b$,c$)
+		elseif a$="A":len%=len%+1:doNote:(len%,oct%+12,b$,c$)
+		elseif a$="B":len%=len%+1:doNote:(len%,oct%+14,b$,c$)
+		elseif a$="L":doNote:(len%,-999,b$,c$)
+		elseif a$=">":oct%=oct%+12
+		elseif a$="<":oct%=oct%-12
+		endif
+		loop%=loop%+1
+	endwh
+	return len%
+endp
+
+proc doNote:(len%,t%,shrp$,dot$)
+	local d$(1),tone%
+	if t%=-999
+		if asc(dot$)>asc("9") or asc(dot$)<asc("0")
+			dur%=max%/(asc(shrp$)-asc("0"))
+		else
+			dur%=max%/((asc(shrp$)-asc("0"))*10+asc(dot$)-asc("0"))
+		endif
+	else
+		d$=shrp$ :tone%=t%
+		if shrp$="#" or shrp$="+":tone%=tone%+1:d$=dot$
+		elseif shrp$="-" or shrp$="!":tone%=tone%-1:d$=dot$
+		endif
+		notes%((len%-1)*2+1)=440*(2.0**(tone%/12.0))
+		notes%((len%-1)*2+2)=dur%*(1-0.5*(d$="."))
+	endif
+ENDP
