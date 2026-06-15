@@ -1,6 +1,6 @@
 # mwr2ly
-Manuscript Writer to Lilypond converter + MIDI add-depth script, from http://ssb22.user.srcf.net/mwrhome
-(also mirrored at http://ssb22.gitlab.io/mwrhome just in case)
+Manuscript Writer to Lilypond converter + MIDI add-depth script, from https://ssb22.user.srcf.net/mwrhome
+(also mirrored at https://ssb22.gitlab.io/mwrhome just in case)
 
 Manuscript Writer was a C++ music notation program I made in the mid-1990s to help with school music work. Its input was based on SMX code (e.g. `O2L4cdL8efL4g`) with many additions.
 
